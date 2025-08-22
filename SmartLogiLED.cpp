@@ -5,12 +5,11 @@
 
 #include "framework.h"
 #include "SmartLogiLED.h"
+#include "SmartLogiLED_Logic.h"
 #include "LogitechLEDLib.h"
 #include "Resource.h"
 #include <shellapi.h>
 #include <commdlg.h>
-#include <fstream>
-#include <sstream>
 
 #define MAX_LOADSTRING 100
 
@@ -20,6 +19,9 @@ WCHAR szTitle[MAX_LOADSTRING];                  // Title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // Main window class name
 HHOOK keyboardHook;                            // Keyboard hook handle
 NOTIFYICONDATA nid;                            // Tray icon data
+
+// Start minimized setting
+bool startMinimized = false;
 
 // Color settings for lock keys and default
 COLORREF capsLockColor = RGB(0, 179, 0); // Caps Lock color
@@ -33,107 +35,10 @@ ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-
-// Set color for a key using Logitech LED SDK
-void SetKeyColor(LogiLed::KeyName key, COLORREF color) {
-    int r = GetRValue(color) * 100 / 255;
-    int g = GetGValue(color) * 100 / 255;
-    int b = GetBValue(color) * 100 / 255;
-    LogiLedSetLightingForKeyWithKeyName(key, r, g, b);
-}
-
-// Set color for all keys
-void SetDefaultColor(COLORREF color) {
-    defaultColor = color;
-    int r = GetRValue(defaultColor) * 100 / 255;
-    int g = GetGValue(defaultColor) * 100 / 255;
-    int b = GetBValue(defaultColor) * 100 / 255;
-    LogiLedSetLighting(r, g, b);
-}
-
-// Set color for lock keys depending on their state
-void SetLockKeysColor(void) {
-    SHORT keyState;
-    LogiLed::KeyName pressedKey;
-    COLORREF colorToSet;
-
-    // NumLock
-    keyState = GetKeyState(VK_NUMLOCK) & 0x0001;
-    pressedKey = LogiLed::KeyName::NUM_LOCK;
-    colorToSet = (keyState == 0x0001) ? numLockColor : offColor;
-    SetKeyColor(pressedKey, colorToSet);
-
-    // ScrollLock
-    keyState = GetKeyState(VK_SCROLL) & 0x0001;
-    pressedKey = LogiLed::KeyName::SCROLL_LOCK;
-    colorToSet = (keyState == 0x0001) ? scrollLockColor : offColor;
-    SetKeyColor(pressedKey, colorToSet);
-
-    // CapsLock
-    keyState = GetKeyState(VK_CAPITAL) & 0x0001;
-    pressedKey = LogiLed::KeyName::CAPS_LOCK;
-    colorToSet = (keyState == 0x0001) ? capsLockColor : offColor;
-    SetKeyColor(pressedKey, colorToSet);
-}
-
-// Show color picker dialog and update color
-void ShowColorPicker(HWND hWnd, COLORREF& color, LogiLed::KeyName key = LogiLed::KeyName::ESC) {
-    CHOOSECOLOR cc;
-    ZeroMemory(&cc, sizeof(cc));
-    cc.lStructSize = sizeof(cc);
-    cc.hwndOwner = hWnd;
-    cc.rgbResult = color;
-    COLORREF custColors[16] = {};
-    cc.lpCustColors = custColors;
-    cc.Flags = CC_FULLOPEN | CC_RGBINIT;
-    if (ChooseColor(&cc)) {
-        color = cc.rgbResult;
-        if (key != LogiLed::KeyName::ESC) {
-            SetKeyColor(key, color);
-        }
-        InvalidateRect(hWnd, NULL, TRUE);
-    }
-}
-
-// Save color settings to INI file
-void SaveColorsToIni() {
-    std::ofstream ini("settings.ini");
-    ini << "[Colors]\n";
-    ini << "NumLock=" << (int)GetRValue(numLockColor) << "," << (int)GetGValue(numLockColor) << "," << (int)GetBValue(numLockColor) << "\n";
-    ini << "CapsLock=" << (int)GetRValue(capsLockColor) << "," << (int)GetGValue(capsLockColor) << "," << (int)GetBValue(capsLockColor) << "\n";
-    ini << "ScrollLock=" << (int)GetRValue(scrollLockColor) << "," << (int)GetGValue(scrollLockColor) << "," << (int)GetBValue(scrollLockColor) << "\n";
-    ini << "LockKeyOff=" << (int)GetRValue(offColor) << "," << (int)GetGValue(offColor) << "," << (int)GetBValue(offColor) << "\n";
-    ini << "Default=" << (int)GetRValue(defaultColor) << "," << (int)GetGValue(defaultColor) << "," << (int)GetBValue(defaultColor) << "\n";
-}
-
-// Load color settings from INI file
-void LoadColorsFromIni() {
-    std::ifstream ini("settings.ini");
-    std::string line;
-    while (std::getline(ini, line)) {
-        if (line.find("NumLock=") == 0) {
-            int r, g, b;
-            sscanf_s(line.c_str(), "NumLock=%d,%d,%d", &r, &g, &b);
-            numLockColor = RGB(r, g, b);
-        } else if (line.find("CapsLock=") == 0) {
-            int r, g, b;
-            sscanf_s(line.c_str(), "CapsLock=%d,%d,%d", &r, &g, &b);
-            capsLockColor = RGB(r, g, b);
-        } else if (line.find("ScrollLock=") == 0) {
-            int r, g, b;
-            sscanf_s(line.c_str(), "ScrollLock=%d,%d,%d", &r, &g, &b);
-            scrollLockColor = RGB(r, g, b);
-        } else if (line.find("LockKeyOff=") == 0) {
-            int r, g, b;
-            sscanf_s(line.c_str(), "LockKeyOff=%d,%d,%d", &r, &g, &b);
-            offColor = RGB(r, g, b);
-        } else if (line.find("Default=") == 0) {
-            int r, g, b;
-            sscanf_s(line.c_str(), "Default=%d,%d,%d", &r, &g, &b);
-            defaultColor = RGB(r, g, b);
-        }
-    }
-}
+INT_PTR CALLBACK    Help(HWND, UINT, WPARAM, LPARAM);
+void                CreateTrayIcon(HWND hWnd);
+void                RemoveTrayIcon();
+void                ShowTrayContextMenu(HWND hWnd);
 
 // Entry point for the application
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -144,8 +49,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
-    // Load colors from settings.ini
-    LoadColorsFromIni();
+    // Load start minimized setting from registry
+    startMinimized = LoadStartMinimizedSetting();
+
+    // Load colors from registry
+    LoadColorsFromRegistry();
 
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -173,43 +81,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     }
 
     return (int) msg.wParam;
-}
-
-// Keyboard hook procedure to update lock key colors on key press
-LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode >= 0 && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)) {
-        KBDLLHOOKSTRUCT* pKeyStruct = (KBDLLHOOKSTRUCT*)lParam;
-
-        // Check if lock key was pressed
-        if ((pKeyStruct->vkCode == VK_NUMLOCK) || (pKeyStruct->vkCode == VK_SCROLL) || (pKeyStruct->vkCode == VK_CAPITAL)) {
-            SHORT keyState;
-            LogiLed::KeyName pressedKey;
-            COLORREF colorToSet;
-
-            // The lock key state is updated only after this callback, so current state off means the key will be turned on
-            switch (pKeyStruct->vkCode) {
-            case VK_NUMLOCK:
-                keyState = GetKeyState(VK_NUMLOCK) & 0x0001;
-                pressedKey = LogiLed::KeyName::NUM_LOCK;
-                colorToSet = (keyState == 0x0000) ? numLockColor : offColor;
-                break;
-            case VK_SCROLL:
-                keyState = GetKeyState(VK_SCROLL) & 0x0001;
-                pressedKey = LogiLed::KeyName::SCROLL_LOCK;
-                colorToSet = (keyState == 0x0000) ? scrollLockColor : offColor;
-                break;
-            case VK_CAPITAL:
-                keyState = GetKeyState(VK_CAPITAL) & 0x0001;
-                pressedKey = LogiLed::KeyName::CAPS_LOCK;
-                colorToSet = (keyState == 0x0000) ? capsLockColor : offColor;
-                break;
-            }
-
-            SetKeyColor(pressedKey, colorToSet);
-        }
-    }
-
-    return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
 }
 
 // Registers the window class
@@ -257,6 +128,10 @@ void ShowTrayContextMenu(HWND hWnd) {
     GetCursorPos(&pt);
     HMENU hMenu = CreatePopupMenu();
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_OPEN, L"Open");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(hMenu, MF_STRING | (startMinimized ? MF_CHECKED : MF_UNCHECKED), 
+                ID_TRAY_START_MINIMIZED, L"Start minimized");
+    AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_CLOSE, L"Close");
     SetForegroundWindow(hWnd); // Required for menu to disappear correctly
     TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hWnd, NULL);
@@ -282,7 +157,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                             SetKeyColor(LogiLed::KeyName::NUM_LOCK, numLockColor);
                         else
                             SetKeyColor(LogiLed::KeyName::NUM_LOCK, offColor);
-                        SaveColorsToIni();
+                        SaveColorsToRegistry();
                         break;
                     case IDC_BOX_CAPSLOCK:
                         // Show color picker for CapsLock
@@ -294,7 +169,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                             SetKeyColor(LogiLed::KeyName::CAPS_LOCK, capsLockColor);
                         else
                             SetKeyColor(LogiLed::KeyName::CAPS_LOCK, offColor);
-                        SaveColorsToIni();
+                        SaveColorsToRegistry();
                         break;
                     case IDC_BOX_SCROLLLOCK:
                         // Show color picker for ScrollLock
@@ -306,7 +181,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                             SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, scrollLockColor);
                         else
                             SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, offColor);
-                        SaveColorsToIni();
+                        SaveColorsToRegistry();
                         break;
                     case IDC_BOX_DEFAULTCOLOR:
                         // Show color picker for default color
@@ -318,7 +193,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                         SetDefaultColor(defaultColor);
                         // set lock keys color
                         SetLockKeysColor();
-                        SaveColorsToIni();
+                        SaveColorsToRegistry();
                         break;
                     case IDC_BOX_OFFCOLOR:
                         // Show color picker for off color
@@ -328,10 +203,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                         InvalidateRect(GetDlgItem(hWnd, IDC_BOX_OFFCOLOR), NULL, TRUE);
                         // Update all lock keys to off color if not active
                         SetLockKeysColor();
-                        SaveColorsToIni();
+                        SaveColorsToRegistry();
                         break;
                     case IDM_ABOUT:
                         DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+                        break;
+                    case IDM_HELP:
+                        DialogBox(hInst, MAKEINTRESOURCE(IDD_HELPBOX), hWnd, Help);
                         break;
                     case IDM_EXIT:
                         DestroyWindow(hWnd);
@@ -339,6 +217,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     case ID_TRAY_OPEN:
                         ShowWindow(hWnd, SW_RESTORE);
                         RemoveTrayIcon();
+                        break;
+                    case ID_TRAY_START_MINIMIZED:
+                        startMinimized = !startMinimized;
+                        SaveStartMinimizedSetting(startMinimized);
                         break;
                     case ID_TRAY_CLOSE:
                         DestroyWindow(hWnd);
@@ -508,9 +390,14 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    CreateWindowW(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_NOTIFY, 40, 160, 60, 60, hWnd, (HMENU)IDC_BOX_DEFAULTCOLOR, hInstance, nullptr);
    CreateWindowW(L"STATIC", L"Other Keys", WS_VISIBLE | WS_CHILD | SS_CENTER, 40, 225, 60, 40, hWnd, (HMENU)IDC_LABEL_DEFAULTCOLOR, hInstance, nullptr);
 
-   ShowWindow(hWnd, SW_HIDE);
+   // Show window according to start minimized setting
+   if (startMinimized) {
+       ShowWindow(hWnd, SW_HIDE);
+       CreateTrayIcon(hWnd);
+   } else {
+       ShowWindow(hWnd, nCmdShow);
+   }
    UpdateWindow(hWnd);
-   CreateTrayIcon(hWnd);
 
    // Initialize Logitech LED SDK
    bool LedInitialized = LogiLedInit();
@@ -544,8 +431,54 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     switch (message)
     {
     case WM_INITDIALOG:
+    {
+        // Load and set the 64x64 small icon for About dialog
+        HICON hIcon = (HICON)LoadImage(
+            hInst,
+            MAKEINTRESOURCE(IDI_SMALL),
+            IMAGE_ICON,
+            64, 64,
+            LR_DEFAULTCOLOR
+        );
+        if (hIcon)
+        {
+            SendDlgItemMessage(hDlg, IDC_STATIC_ICON_ABOUT, STM_SETICON, (WPARAM)hIcon, 0);
+        }
         return (INT_PTR)TRUE;
+    }
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        break;
+    }
+    return (INT_PTR)FALSE;
+}
 
+// Callback function for the Help dialog box
+INT_PTR CALLBACK Help(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER(lParam);
+    switch (message)
+    {
+    case WM_INITDIALOG:
+    {
+        // Load and set the 256x256 main icon for Help dialog
+        HICON hIcon = (HICON)LoadImage(
+            hInst,
+            MAKEINTRESOURCE(IDI_SMARTLOGILED),
+            IMAGE_ICON,
+            256, 256,
+            LR_DEFAULTCOLOR
+        );
+        if (hIcon)
+        {
+            SendDlgItemMessage(hDlg, IDC_STATIC_ICON_HELP, STM_SETICON, (WPARAM)hIcon, 0);
+        }
+        return (INT_PTR)TRUE;
+    }
     case WM_COMMAND:
         if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
         {

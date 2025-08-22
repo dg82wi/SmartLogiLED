@@ -27,9 +27,15 @@
     <ClInclude Include="SmartLogiLED.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="SmartLogiLED_Logic.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SmartLogiLED.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="SmartLogiLED_Logic.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
   </ItemGroup>
@@ -39,10 +45,10 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="small.ico">
+    <Image Include="SmartLogiLED.ico">
       <Filter>Ressourcendateien</Filter>
     </Image>
-    <Image Include="SmartLogiLED.ico">
+    <Image Include="SmartLogiLED_small.ico">
       <Filter>Ressourcendateien</Filter>
     </Image>
   </ItemGroup>
