@@ -27,8 +27,7 @@ bool startMinimized = false;
 COLORREF capsLockColor = RGB(0, 179, 0); // Caps Lock color
 COLORREF scrollLockColor = RGB(0, 179, 0); // Scroll Lock color
 COLORREF numLockColor = RGB(0, 179, 0); // Num Lock color
-COLORREF offColor = RGB(0, 89, 89); // Lock Key off color
-COLORREF defaultColor = RGB(0, 89, 89); // default color used for all other keys
+COLORREF defaultColor = RGB(0, 89, 89); // default color used for all other keys and lock keys when off
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -140,7 +139,7 @@ void ShowTrayContextMenu(HWND hWnd) {
 
 // Main window procedure (handles messages)
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-    static HBRUSH hBrushNum = NULL, hBrushCaps = NULL, hBrushScroll = NULL, hBrushOff = NULL, hBrushDefault = NULL;
+    static HBRUSH hBrushNum = NULL, hBrushCaps = NULL, hBrushScroll = NULL, hBrushDefault = NULL;
     switch (message) {
         case WM_COMMAND:
             {
@@ -152,11 +151,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                         if (hBrushNum) DeleteObject(hBrushNum);
                         hBrushNum = CreateSolidBrush(numLockColor);
                         InvalidateRect(GetDlgItem(hWnd, IDC_BOX_NUMLOCK), NULL, TRUE);
-                        // Set color according to lock state
-                        if ((GetKeyState(VK_NUMLOCK) & 0x0001) == 0x0001)
-                            SetKeyColor(LogiLed::KeyName::NUM_LOCK, numLockColor);
-                        else
-                            SetKeyColor(LogiLed::KeyName::NUM_LOCK, offColor);
+                        // Set color according to lock state and feature enabled state
+                        if (IsLockKeysFeatureEnabled()) {
+                            if ((GetKeyState(VK_NUMLOCK) & 0x0001) == 0x0001)
+                                SetKeyColor(LogiLed::KeyName::NUM_LOCK, numLockColor);
+                            else
+                                SetKeyColor(LogiLed::KeyName::NUM_LOCK, defaultColor);
+                        } else {
+                            SetKeyColor(LogiLed::KeyName::NUM_LOCK, defaultColor);
+                        }
                         SaveColorsToRegistry();
                         break;
                     case IDC_BOX_CAPSLOCK:
@@ -165,10 +168,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                         if (hBrushCaps) DeleteObject(hBrushCaps);
                         hBrushCaps = CreateSolidBrush(capsLockColor);
                         InvalidateRect(GetDlgItem(hWnd, IDC_BOX_CAPSLOCK), NULL, TRUE);
-                        if ((GetKeyState(VK_CAPITAL) & 0x0001) == 0x0001)
-                            SetKeyColor(LogiLed::KeyName::CAPS_LOCK, capsLockColor);
-                        else
-                            SetKeyColor(LogiLed::KeyName::CAPS_LOCK, offColor);
+                        // Set color according to lock state and feature enabled state
+                        if (IsLockKeysFeatureEnabled()) {
+                            if ((GetKeyState(VK_CAPITAL) & 0x0001) == 0x0001)
+                                SetKeyColor(LogiLed::KeyName::CAPS_LOCK, capsLockColor);
+                            else
+                                SetKeyColor(LogiLed::KeyName::CAPS_LOCK, defaultColor);
+                        } else {
+                            SetKeyColor(LogiLed::KeyName::CAPS_LOCK, defaultColor);
+                        }
                         SaveColorsToRegistry();
                         break;
                     case IDC_BOX_SCROLLLOCK:
@@ -177,10 +185,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                         if (hBrushScroll) DeleteObject(hBrushScroll);
                         hBrushScroll = CreateSolidBrush(scrollLockColor);
                         InvalidateRect(GetDlgItem(hWnd, IDC_BOX_SCROLLLOCK), NULL, TRUE);
-                        if ((GetKeyState(VK_SCROLL) & 0x0001) == 0x0001)
-                            SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, scrollLockColor);
-                        else
-                            SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, offColor);
+                        // Set color according to lock state and feature enabled state
+                        if (IsLockKeysFeatureEnabled()) {
+                            if ((GetKeyState(VK_SCROLL) & 0x0001) == 0x0001)
+                                SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, scrollLockColor);
+                            else
+                                SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, defaultColor);
+                        } else {
+                            SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, defaultColor);
+                        }
                         SaveColorsToRegistry();
                         break;
                     case IDC_BOX_DEFAULTCOLOR:
@@ -192,16 +205,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                         // set new color for all keys
                         SetDefaultColor(defaultColor);
                         // set lock keys color
-                        SetLockKeysColor();
-                        SaveColorsToRegistry();
-                        break;
-                    case IDC_BOX_OFFCOLOR:
-                        // Show color picker for off color
-                        ShowColorPicker(hWnd, offColor);
-                        if (hBrushOff) DeleteObject(hBrushOff);
-                        hBrushOff = CreateSolidBrush(offColor);
-                        InvalidateRect(GetDlgItem(hWnd, IDC_BOX_OFFCOLOR), NULL, TRUE);
-                        // Update all lock keys to off color if not active
                         SetLockKeysColor();
                         SaveColorsToRegistry();
                         break;
@@ -253,12 +256,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     SetBkMode(hdcStatic, TRANSPARENT);
                     return (LRESULT)hBrushScroll;
                 }
-                if (hCtrl == GetDlgItem(hWnd, IDC_BOX_OFFCOLOR)) {
-                    if (hBrushOff) DeleteObject(hBrushOff);
-                    hBrushOff = CreateSolidBrush(offColor);
-                    SetBkMode(hdcStatic, TRANSPARENT);
-                    return (LRESULT)hBrushOff;
-                }
                 if (hCtrl == GetDlgItem(hWnd, IDC_BOX_DEFAULTCOLOR)) {
                     if (hBrushDefault) DeleteObject(hBrushDefault);
                     hBrushDefault = CreateSolidBrush(defaultColor);
@@ -298,14 +295,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     FillRect(hdc, &r, brush);
                     DeleteObject(brush);
                 }
-                hBox = GetDlgItem(hWnd, IDC_BOX_OFFCOLOR);
-                if (hBox) {
-                    GetWindowRect(hBox, &r);
-                    MapWindowPoints(NULL, hWnd, (LPPOINT)&r, 2);
-                    HBRUSH brush = CreateSolidBrush(offColor);
-                    FillRect(hdc, &r, brush);
-                    DeleteObject(brush);
-                }
                 hBox = GetDlgItem(hWnd, IDC_BOX_DEFAULTCOLOR);
                 if (hBox) {
                     GetWindowRect(hBox, &r);
@@ -322,9 +311,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             if (hBrushNum) DeleteObject(hBrushNum);
             if (hBrushCaps) DeleteObject(hBrushCaps);
             if (hBrushScroll) DeleteObject(hBrushScroll);
-            if (hBrushOff) DeleteObject(hBrushOff);
             if (hBrushDefault) DeleteObject(hBrushDefault);
             RemoveTrayIcon();
+            CleanupAppMonitoring(); // Cleanup app monitoring before other cleanup
             UnhookWindowsHookEx(keyboardHook);
             LogiLedRestoreLighting();
             LogiLedShutdown();
@@ -372,7 +361,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    // Group Box for lock keys
    HWND hGroup = CreateWindowW(L"BUTTON", L"Lock Keys Color", WS_VISIBLE | WS_CHILD | BS_GROUPBOX,
-      20, 10, 400, 140, hWnd, (HMENU)IDC_GROUP_LOCKS, hInstance, nullptr);
+      20, 10, 300, 140, hWnd, (HMENU)IDC_GROUP_LOCKS, hInstance, nullptr);
 
    // Color Boxes and Labels for lock keys inside the Group Box
    CreateWindowW(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_NOTIFY, 40, 30, 60, 60, hWnd, (HMENU)IDC_BOX_NUMLOCK, hInstance, nullptr);
@@ -382,13 +371,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    CreateWindowW(L"STATIC", L"CAPS LOCK", WS_VISIBLE | WS_CHILD | SS_CENTER, 140, 95, 60, 40, hWnd, (HMENU)IDC_LABEL_CAPSLOCK, hInstance, nullptr);
    CreateWindowW(L"STATIC", L"SCROLL LOCK", WS_VISIBLE | WS_CHILD | SS_CENTER, 240, 95, 60, 40, hWnd, (HMENU)IDC_LABEL_SCROLLLOCK, hInstance, nullptr);
 
-   // Off Color Box and Label for lock keys
-   CreateWindowW(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_NOTIFY, 340, 30, 60, 60, hWnd, (HMENU)IDC_BOX_OFFCOLOR, hInstance, nullptr);
-   CreateWindowW(L"STATIC", L"Off", WS_VISIBLE | WS_CHILD | SS_CENTER, 340, 95, 60, 20, hWnd, (HMENU)IDC_LABEL_OFFCOLOR, hInstance, nullptr);
-
-   // Default Color Box and Label for other keys
-   CreateWindowW(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_NOTIFY, 40, 160, 60, 60, hWnd, (HMENU)IDC_BOX_DEFAULTCOLOR, hInstance, nullptr);
-   CreateWindowW(L"STATIC", L"Other Keys", WS_VISIBLE | WS_CHILD | SS_CENTER, 40, 225, 60, 40, hWnd, (HMENU)IDC_LABEL_DEFAULTCOLOR, hInstance, nullptr);
+   // Default Color Box and Label for other keys (and lock keys when off)
+   CreateWindowW(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_NOTIFY, 340, 30, 60, 60, hWnd, (HMENU)IDC_BOX_DEFAULTCOLOR, hInstance, nullptr);
+   CreateWindowW(L"STATIC", L"Default Color", WS_VISIBLE | WS_CHILD | SS_CENTER, 340, 95, 60, 40, hWnd, (HMENU)IDC_LABEL_DEFAULTCOLOR, hInstance, nullptr);
 
    // Show window according to start minimized setting
    if (startMinimized) {
@@ -417,6 +402,20 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    // Set colors for lock keys based on current state
    SetLockKeysColor();
+
+   // Initialize app monitoring
+   InitializeAppMonitoring();
+   
+   // Example: Add some app color profiles with lock keys feature control
+   // You can customize these or add a UI to manage them
+   AddAppColorProfile(L"notepad.exe", RGB(255, 255, 0), true);      // Yellow for Notepad, lock keys enabled
+   AddAppColorProfile(L"chrome.exe", RGB(0, 255, 255), false);      // Cyan for Chrome, lock keys disabled
+   AddAppColorProfile(L"firefox.exe", RGB(255, 165, 0), false);     // Orange for Firefox, lock keys disabled  
+   AddAppColorProfile(L"code.exe", RGB(0, 255, 0), true);           // Green for VS Code, lock keys enabled
+   AddAppColorProfile(L"devenv.exe", RGB(128, 0, 128), false);       // Purple for Visual Studio, lock keys enabled
+   
+   // Check for already running apps and update colors
+   CheckRunningAppsAndUpdateColors();
 
    // Set up keyboard hook
    keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);

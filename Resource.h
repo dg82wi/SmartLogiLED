@@ -33,9 +33,6 @@
 #define ID_TRAY_CLOSE 1002
 #define ID_TRAY_START_MINIMIZED 1003
 #define IDC_GROUP_LOCKS 300
-#define IDC_BOX_OFFCOLOR 400
-#define IDC_LABEL_OFFCOLOR 401
-
 
 // Nächste Standardwerte für neue Objekte
 //

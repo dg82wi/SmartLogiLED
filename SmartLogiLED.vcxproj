@@ -149,8 +149,8 @@
     <Image Include="SmartLogiLED_small.ico" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="APP_MONITORING_USAGE.md" />
     <None Include="README.md" />
-    <None Include="settings.ini" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

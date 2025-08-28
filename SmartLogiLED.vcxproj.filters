@@ -53,7 +53,7 @@
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <None Include="settings.ini" />
     <None Include="README.md" />
+    <None Include="APP_MONITORING_USAGE.md" />
   </ItemGroup>
 </Project>
