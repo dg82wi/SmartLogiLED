@@ -10,7 +10,13 @@
 #define REGISTRY_VALUE_CAPSLOCK_COLOR L"CapsLockColor"
 #define REGISTRY_VALUE_SCROLLLOCK_COLOR L"ScrollLockColor"
 #define REGISTRY_VALUE_DEFAULT_COLOR L"DefaultColor"
-extern const wchar_t* APP_PROFILES_SUBKEY;
+#define REGISTRY_KEY_APP_PROFILES_SUBKEY L"SOFTWARE\\SmartLogiLED\\AppProfiles"
+#define REGISTRY_VALUE_APP_COLOR L"AppColor"
+#define REGISTRY_VALUE_APP_HIGHLIGHT_COLOR L"AppHighlightColor"
+#define REGISTRY_VALUE_LOCK_KEYS_ENABLED L"LockKeysEnabled"
+#define REGISTRY_VALUE_HIGHLIGHT_KEYS L"HighlightKeys"
+
+
 
 // Registry functions for start minimized setting
 void SaveStartMinimizedSetting(bool minimized);

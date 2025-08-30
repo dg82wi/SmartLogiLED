@@ -34,6 +34,12 @@
 #define ID_TRAY_START_MINIMIZED 1003
 #define IDC_GROUP_LOCKS 300
 
+// App Profile controls
+#define IDC_GROUP_APPPROFILE 301
+#define IDC_COMBO_APPPROFILE 302
+#define IDC_BUTTON_ADD_PROFILE 303
+#define IDC_BUTTON_REMOVE_PROFILE 304
+
 // Nächste Standardwerte für neue Objekte
 //
 #ifdef APSTUDIO_INVOKED

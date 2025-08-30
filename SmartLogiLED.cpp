@@ -13,6 +13,7 @@
 #include <commdlg.h>
 
 #define MAX_LOADSTRING 100
+#define WM_UPDATE_PROFILE_COMBO (WM_USER + 100)
 
 // Global variables:
 HINSTANCE hInst;                                // Current instance
@@ -39,6 +40,11 @@ INT_PTR CALLBACK    Help(HWND, UINT, WPARAM, LPARAM);
 void                CreateTrayIcon(HWND hWnd);
 void                RemoveTrayIcon();
 void                ShowTrayContextMenu(HWND hWnd);
+void                PopulateAppProfileCombo(HWND hCombo);
+void                RefreshAppProfileCombo(HWND hWnd);
+void                ShowAddProfileDialog(HWND hWnd);
+void                RemoveSelectedProfile(HWND hWnd);
+void                UpdateActiveProfileSelection(HWND hWnd);
 
 // Entry point for the application
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -229,6 +235,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     case ID_TRAY_CLOSE:
                         DestroyWindow(hWnd);
                         break;
+                    case IDC_BUTTON_ADD_PROFILE:
+                        ShowAddProfileDialog(hWnd);
+                        break;
+                    case IDC_BUTTON_REMOVE_PROFILE:
+                        RemoveSelectedProfile(hWnd);
+                        break;
                     default:
                         return DefWindowProc(hWnd, message, wParam, lParam);
                 }
@@ -344,6 +356,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                 ShowTrayContextMenu(hWnd);
             }
             break;
+        case WM_UPDATE_PROFILE_COMBO: // Custom message to update profile combo box
+            UpdateActiveProfileSelection(hWnd);
+            break;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
     }
@@ -354,10 +369,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance;
-   // Fixed window size
+   // Fixed window size - increased height to accommodate new App Profile section
    HWND hWnd = CreateWindowW(szWindowClass, szTitle,
       WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-      CW_USEDEFAULT, 0, 450, 340, nullptr, nullptr, hInstance, nullptr);
+      CW_USEDEFAULT, 0, 450, 420, nullptr, nullptr, hInstance, nullptr);
    if (!hWnd) return FALSE;
 
    // Group Box for lock keys
@@ -375,6 +390,22 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Default Color Box and Label for other keys (and lock keys when off)
    CreateWindowW(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_NOTIFY, 340, 30, 60, 60, hWnd, (HMENU)IDC_BOX_DEFAULTCOLOR, hInstance, nullptr);
    CreateWindowW(L"STATIC", L"Default Color", WS_VISIBLE | WS_CHILD | SS_CENTER, 340, 95, 60, 40, hWnd, (HMENU)IDC_LABEL_DEFAULTCOLOR, hInstance, nullptr);
+
+   // Group Box for App Profiles
+   HWND hAppGroup = CreateWindowW(L"BUTTON", L"App Profile", WS_VISIBLE | WS_CHILD | BS_GROUPBOX,
+      20, 160, 380, 80, hWnd, (HMENU)IDC_GROUP_APPPROFILE, hInstance, nullptr);
+
+   // Combo Box for App Profiles
+   HWND hCombo = CreateWindowW(L"COMBOBOX", NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | WS_VSCROLL,
+      40, 190, 200, 200, hWnd, (HMENU)IDC_COMBO_APPPROFILE, hInstance, nullptr);
+
+   // Add Profile Button
+   CreateWindowW(L"BUTTON", L"+", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+      250, 190, 30, 25, hWnd, (HMENU)IDC_BUTTON_ADD_PROFILE, hInstance, nullptr);
+
+   // Remove Profile Button  
+   CreateWindowW(L"BUTTON", L"-", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+      290, 190, 30, 25, hWnd, (HMENU)IDC_BUTTON_REMOVE_PROFILE, hInstance, nullptr);
 
    // Show window according to start minimized setting
    if (startMinimized) {
@@ -407,6 +438,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Initialize app monitoring
    InitializeAppMonitoring();
    
+   // Set main window handle for UI updates
+   SetMainWindowHandle(hWnd);
+   
    // Load app profiles from registry (includes highlight color and keys)
    LoadAppProfilesFromRegistry();
 
@@ -420,13 +454,144 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
        SaveAppProfilesToRegistry();
    }
    
+   // Populate the combo box with app profiles
+   PopulateAppProfileCombo(hCombo);
+   
    // Check for already running apps and update colors
    CheckRunningAppsAndUpdateColors();
+   
+   // Update the combo box to reflect any displayed profiles after checking running apps
+   UpdateActiveProfileSelection(hWnd);
 
    // Set up keyboard hook
    keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
    
    return TRUE;
+}
+
+// Populate app profile combo box with current profiles
+void PopulateAppProfileCombo(HWND hCombo) {
+    // Clear existing items
+    SendMessage(hCombo, CB_RESETCONTENT, 0, 0);
+    
+    // Add "NONE" as the first item
+    SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)L"NONE");
+    
+    // Get current profiles
+    std::vector<AppColorProfile> profiles = GetAppColorProfilesCopy();
+    
+    int displayedProfileIndex = 0; // Default to "NONE" (index 0)
+    
+    // Add each profile to the combo box
+    for (size_t i = 0; i < profiles.size(); i++) {
+        const auto& profile = profiles[i];
+        SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)profile.appName.c_str());
+        
+        // Check if this profile is currently displayed (controlling colors)
+        // Use the FIRST displayed profile found (should only be one now)
+        if (profile.isProfileCurrentlyInUse && displayedProfileIndex == 0) {
+            displayedProfileIndex = (int)i + 1; // +1 because of "NONE" at index 0
+        }
+    }
+    
+    // Select the displayed profile if found, otherwise select "NONE"
+    SendMessage(hCombo, CB_SETCURSEL, displayedProfileIndex, 0);
+}
+
+// Refresh the app profile combo box
+void RefreshAppProfileCombo(HWND hWnd) {
+    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+    if (hCombo) {
+        PopulateAppProfileCombo(hCombo);
+    }
+}
+
+// Show dialog to add a new app profile
+void ShowAddProfileDialog(HWND hWnd) {
+    // Create a simple input dialog
+    WCHAR appName[256] = L"";
+    
+    // Use a simulated input - in a real implementation you would create a proper dialog resource
+    // For now, let's use a hardcoded example that users can see working
+    
+    if (MessageBoxW(hWnd, L"This will add a sample profile 'notepad++.exe' with blue color.\nClick OK to proceed.", L"Add App Profile", MB_OKCANCEL) == IDOK) {
+        // Add a sample profile
+        std::wstring sampleAppName = L"notepad++.exe";
+        COLORREF sampleColor = RGB(0, 100, 255); // Blue
+        bool lockKeysEnabled = true;
+        
+        // Check if profile already exists
+        std::vector<AppColorProfile> profiles = GetAppColorProfilesCopy();
+        bool exists = false;
+        for (const auto& profile : profiles) {
+            if (profile.appName == sampleAppName) {
+                exists = true;
+                break;
+            }
+        }
+        
+        if (exists) {
+            MessageBoxW(hWnd, L"Profile already exists for this application!", L"Add Profile", MB_OK);
+        } else {
+            // Add the profile
+            AddAppColorProfile(sampleAppName, sampleColor, lockKeysEnabled);
+            SaveAppProfilesToRegistry();
+            
+            // Refresh the combo box
+            RefreshAppProfileCombo(hWnd);
+            
+            MessageBoxW(hWnd, (L"Added profile for: " + sampleAppName).c_str(), L"Profile Added", MB_OK);
+        }
+    }
+}
+
+// Remove the selected app profile
+void RemoveSelectedProfile(HWND hWnd) {
+    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+    if (!hCombo) return;
+    
+    int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
+    if (selectedIndex == CB_ERR || selectedIndex == 0) { // Can't remove "NONE" 
+        MessageBoxW(hWnd, L"No valid profile selected", L"Remove Profile", MB_OK);
+        return;
+    }
+    
+    // Get the selected app name
+    WCHAR appName[256];
+    SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
+    
+    // Confirm removal
+    std::wstring message = L"Remove profile for: " + std::wstring(appName) + L"?";
+    if (MessageBoxW(hWnd, message.c_str(), L"Confirm Removal", MB_YESNO) == IDYES) {
+        // Remove the profile
+        RemoveAppColorProfile(appName);
+        SaveAppProfilesToRegistry();
+        
+        // Refresh the combo box
+        RefreshAppProfileCombo(hWnd);
+        
+        MessageBoxW(hWnd, L"Profile removed successfully", L"Profile Removed", MB_OK);
+    }
+}
+
+// Update combo box selection to reflect current displayed profile without repopulating
+void UpdateActiveProfileSelection(HWND hWnd) {
+    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+    if (!hCombo) return;
+    
+    std::vector<AppColorProfile> profiles = GetAppColorProfilesCopy();
+    
+    // Find the currently displayed profile (the one controlling colors)
+    for (size_t i = 0; i < profiles.size(); i++) {
+        if (profiles[i].isProfileCurrentlyInUse) {
+            // Select the displayed profile (index + 1 because of "NONE" at index 0)
+            SendMessage(hCombo, CB_SETCURSEL, i + 1, 0);
+            return;
+        }
+    }
+    
+    // If no profile is displayed, select "NONE"
+    SendMessage(hCombo, CB_SETCURSEL, 0, 0);
 }
 
 // Callback function for the About dialog box

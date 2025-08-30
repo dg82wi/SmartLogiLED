@@ -6,15 +6,6 @@
 #include <algorithm>
 #include "LogitechLEDLib.h"
 
-// Registry constants
-#define REGISTRY_KEY L"SOFTWARE\\SmartLogiLED"
-#define REGISTRY_VALUE_START_MINIMIZED L"StartMinimized"
-#define REGISTRY_VALUE_NUMLOCK_COLOR L"NumLockColor"
-#define REGISTRY_VALUE_CAPSLOCK_COLOR L"CapsLockColor"
-#define REGISTRY_VALUE_SCROLLLOCK_COLOR L"ScrollLockColor"
-#define REGISTRY_VALUE_DEFAULT_COLOR L"DefaultColor"
-const wchar_t* APP_PROFILES_SUBKEY = L"SOFTWARE\\SmartLogiLED\\AppProfiles";
-
 // Registry functions for start minimized setting
 void SaveStartMinimizedSetting(bool minimized) {
     HKEY hKey;
@@ -107,7 +98,7 @@ extern std::mutex appProfilesMutex;
 void SaveAppProfilesToRegistry() {
     std::lock_guard<std::mutex> lock(appProfilesMutex);
     HKEY hProfilesKey = nullptr;
-    if (RegCreateKeyExW(HKEY_CURRENT_USER, APP_PROFILES_SUBKEY, 0, NULL,
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, NULL,
                         REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hProfilesKey, NULL) != ERROR_SUCCESS) {
         return;
     }
@@ -116,23 +107,23 @@ void SaveAppProfilesToRegistry() {
         if (RegCreateKeyExW(hProfilesKey, profile.appName.c_str(), 0, NULL,
                             REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hAppKey, NULL) == ERROR_SUCCESS) {
             DWORD d = static_cast<DWORD>(profile.appColor);
-            RegSetValueExW(hAppKey, L"AppColor", 0, REG_DWORD,
+            RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_COLOR, 0, REG_DWORD,
                            reinterpret_cast<const BYTE*>(&d), sizeof(d));
             d = static_cast<DWORD>(profile.appHighlightColor);
-            RegSetValueExW(hAppKey, L"AppHighlightColor", 0, REG_DWORD,
+            RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_HIGHLIGHT_COLOR, 0, REG_DWORD,
                            reinterpret_cast<const BYTE*>(&d), sizeof(d));
             d = profile.lockKeysEnabled ? 1u : 0u;
-            RegSetValueExW(hAppKey, L"LockKeysEnabled", 0, REG_DWORD,
+            RegSetValueExW(hAppKey, REGISTRY_VALUE_LOCK_KEYS_ENABLED, 0, REG_DWORD,
                            reinterpret_cast<const BYTE*>(&d), sizeof(d));
             if (!profile.highlightKeys.empty()) {
                 std::vector<DWORD> data;
                 data.reserve(profile.highlightKeys.size());
                 for (auto k : profile.highlightKeys) data.push_back(static_cast<DWORD>(k));
-                RegSetValueExW(hAppKey, L"HighlightKeys", 0, REG_BINARY,
+                RegSetValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, 0, REG_BINARY,
                                reinterpret_cast<const BYTE*>(data.data()),
                                static_cast<DWORD>(data.size() * sizeof(DWORD)));
             } else {
-                RegSetValueExW(hAppKey, L"HighlightKeys", 0, REG_BINARY, nullptr, 0);
+                RegSetValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, 0, REG_BINARY, nullptr, 0);
             }
             RegCloseKey(hAppKey);
         }
@@ -143,7 +134,7 @@ void SaveAppProfilesToRegistry() {
 void LoadAppProfilesFromRegistry() {
     std::lock_guard<std::mutex> lock(appProfilesMutex);
     HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, APP_PROFILES_SUBKEY, 0, KEY_READ, &hProfilesKey) != ERROR_SUCCESS) {
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_READ, &hProfilesKey) != ERROR_SUCCESS) {
         return;
     }
     appColorProfiles.clear();
@@ -161,24 +152,26 @@ void LoadAppProfilesFromRegistry() {
                 AppColorProfile p;
                 p.appName = subKeyName;
                 DWORD type = 0; DWORD cb = sizeof(DWORD); DWORD d = 0;
-                if (RegQueryValueExW(hAppKey, L"AppColor", NULL, &type, reinterpret_cast<LPBYTE>(&d), &cb) == ERROR_SUCCESS && type == REG_DWORD)
+                if (RegQueryValueExW(hAppKey, REGISTRY_VALUE_APP_COLOR, NULL, &type, reinterpret_cast<LPBYTE>(&d), &cb) == ERROR_SUCCESS && type == REG_DWORD)
                     p.appColor = static_cast<COLORREF>(d);
                 d = 0; cb = sizeof(DWORD); type = 0;
-                if (RegQueryValueExW(hAppKey, L"AppHighlightColor", NULL, &type, reinterpret_cast<LPBYTE>(&d), &cb) == ERROR_SUCCESS && type == REG_DWORD)
+                if (RegQueryValueExW(hAppKey, REGISTRY_VALUE_APP_HIGHLIGHT_COLOR, NULL, &type, reinterpret_cast<LPBYTE>(&d), &cb) == ERROR_SUCCESS && type == REG_DWORD)
                     p.appHighlightColor = static_cast<COLORREF>(d);
                 d = 1; cb = sizeof(DWORD); type = 0;
-                if (RegQueryValueExW(hAppKey, L"LockKeysEnabled", NULL, &type, reinterpret_cast<LPBYTE>(&d), &cb) == ERROR_SUCCESS && type == REG_DWORD)
+                if (RegQueryValueExW(hAppKey, REGISTRY_VALUE_LOCK_KEYS_ENABLED, NULL, &type, reinterpret_cast<LPBYTE>(&d), &cb) == ERROR_SUCCESS && type == REG_DWORD)
                     p.lockKeysEnabled = (d != 0);
                 DWORD dataSize = 0; type = 0;
-                if (RegQueryValueExW(hAppKey, L"HighlightKeys", NULL, &type, NULL, &dataSize) == ERROR_SUCCESS && type == REG_BINARY && dataSize > 0) {
+                if (RegQueryValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, NULL, &type, NULL, &dataSize) == ERROR_SUCCESS && type == REG_BINARY && dataSize > 0) {
                     std::vector<DWORD> data(dataSize / sizeof(DWORD));
-                    if (RegQueryValueExW(hAppKey, L"HighlightKeys", NULL, &type, reinterpret_cast<LPBYTE>(data.data()), &dataSize) == ERROR_SUCCESS) {
+                    if (RegQueryValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, NULL, &type, reinterpret_cast<LPBYTE>(data.data()), &dataSize) == ERROR_SUCCESS) {
                         p.highlightKeys.clear();
                         p.highlightKeys.reserve(data.size());
                         for (DWORD v : data) p.highlightKeys.push_back(static_cast<LogiLed::KeyName>(v));
                     }
                 }
-                p.isActive = IsAppRunning(p.appName);
+                // Initialize runtime flags properly
+                p.isAppRunning = IsAppRunning(p.appName);
+                p.isProfileCurrentlyInUse = false; // Will be set correctly by CheckRunningAppsAndUpdateColors()
                 appColorProfiles.push_back(std::move(p));
                 RegCloseKey(hAppKey);
             }

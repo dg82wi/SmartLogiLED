@@ -14,7 +14,7 @@ A Windows application that controls Logitech RGB keyboard lighting for lock keys
 - **Smart App Detection**: Only monitors visible applications (no background processes or hidden services)
 - **Automatic Color Switching**: Seamlessly switch keyboard colors when monitored applications start or stop
 - **Lock Key Control per App**: Enable or disable lock key functionality for specific applications
-- **Multiple Active Apps**: Intelligent handoff between multiple monitored applications
+- **Multiple Active Apps**: Intelligent handoff with most recently activated app priority
 - **Efficient Resource Usage**: Optimized monitoring with minimal CPU impact
 
 ### User Interface & Integration
@@ -75,6 +75,7 @@ When any of these applications are visible and active:
 - The keyboard automatically switches to the application's configured color
 - Lock key behavior follows the application's lock key setting
 - When the application closes, the keyboard returns to the default color or hands off to another active monitored app
+- **Most Recently Activated Priority**: The most recently started monitored app takes precedence
 
 ### System Tray Features
 - **Double-click**: Restore the main window
@@ -112,7 +113,14 @@ When any of these applications are visible and active:
 - **Window Validation**: Checks for main application windows with titles
 - **Performance Optimized**: Efficient scanning with minimal system impact
 - **Thread Safety**: Mutex-protected data structures for safe multi-threading
-- **Intelligent Handoff**: When multiple monitored apps are running, first active takes precedence
+- **Intelligent Handoff**: Most recently activated monitored app takes precedence
+- **Debug Logging**: Comprehensive debug output for troubleshooting app switching logic
+
+### Enhanced Profile Management
+- **Profile State Tracking**: Each profile tracks both running state (`isAppRunning`) and display state (`isProfileCurrentlyInUse`)
+- **Most Recently Activated Logic**: The `lastActivatedProfile` variable tracks which profile should have priority
+- **Fallback Logic**: When the active profile stops, control passes to the most recently activated profile or first available
+- **Thread-Safe Operations**: All profile operations protected by mutex for safe concurrent access
 
 ### File Structure
 ```
@@ -144,11 +152,11 @@ Settings are stored in the Windows registry under:
 - **Application Profiles**: Each app has its own subkey with color, highlight color, lock keys setting, and highlight keys
 
 ### Persistent App Profiles
-Application profiles are now automatically saved to and loaded from the registry, including:
+Application profiles are automatically saved to and loaded from the registry, including:
 - Application name and colors
 - Lock keys enabled/disabled setting
 - Highlight colors and keys for future UI enhancements
-- Active state (runtime only)
+- Running state (runtime only) and display state tracking
 
 ## Troubleshooting
 
@@ -179,9 +187,9 @@ Application profiles are now automatically saved to and loaded from the registry
 - User's base default color is preserved and properly restored when apps exit
 
 **Multiple app handoff issues**
-- When multiple monitored apps are running, the first active app takes precedence
-- When an active app stops, lighting automatically hands off to the next active monitored app
-- If no monitored apps remain active, returns to user's default color
+- **Most Recently Activated Priority**: When multiple monitored apps are running, the most recently started app takes control
+- **Intelligent Fallback**: When an active app stops, control passes to the most recently activated profile that's still running
+- **Debug Logging**: Check debug output for detailed app switching behavior
 
 **Application doesn't start**
 - Ensure all required DLLs are present (especially Logitech LED SDK libraries)
@@ -194,12 +202,16 @@ Application profiles are now automatically saved to and loaded from the registry
 - Check for conflicting keyboard software
 
 ### Debug Mode
-When building in Debug configuration, additional error checking and logging may be available.
+When building in Debug configuration, comprehensive debug logging is available via `OutputDebugStringW` calls, including:
+- App start/stop detection
+- Profile state changes (`isAppRunning` and `isProfileCurrentlyInUse`)
+- Most recently activated profile tracking
+- Color handoff logic
 
 ## Customization
 
 ### Adding New Application Profiles
-Application profiles are now automatically persisted to the registry. To add new profiles programmatically:
+Application profiles are automatically persisted to the registry. To add new profiles programmatically:
 
 1. Use the `AddAppColorProfile()` function:
    ```cpp
@@ -213,6 +225,7 @@ The monitoring thread can be customized in `SmartLogiLED_Logic.cpp`:
 - **Scan Interval**: Modify the sleep duration in `AppMonitorThreadProc()`
 - **Visibility Criteria**: Adjust the window detection logic in `IsProcessVisible()`
 - **Process Filtering**: Modify the process enumeration in `GetVisibleRunningProcesses()`
+- **Priority Logic**: Adjust the most recently activated profile handling
 
 ### Registry Configuration
 Advanced users can modify settings directly in the registry:
@@ -247,7 +260,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Version History
 
-### v2.1.0 (Current)
+### v2.2.0 (Current)
+- **IMPROVED**: Most recently activated app priority system for better multi-app handling
+- **NEW**: Enhanced debug logging for troubleshooting app switching behavior
+- **IMPROVED**: Profile state tracking with separate `isAppRunning` and `isProfileCurrentlyInUse` flags
+- **IMPROVED**: Intelligent fallback logic when active profiles stop
+- **IMPROVED**: Better thread safety and mutex protection for profile operations
+
+### v2.1.0
 - **FIXED**: Default color preservation - app colors no longer overwrite user's base default color
 - **IMPROVED**: Multiple active app handoff - intelligent switching between monitored applications
 - **NEW**: Separate configuration module (`SmartLogiLED_Config.cpp`) for better code organization
