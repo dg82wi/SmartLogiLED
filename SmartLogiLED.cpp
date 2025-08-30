@@ -6,6 +6,7 @@
 #include "framework.h"
 #include "SmartLogiLED.h"
 #include "SmartLogiLED_Logic.h"
+#include "SmartLogiLED_Config.h"
 #include "LogitechLEDLib.h"
 #include "Resource.h"
 #include <shellapi.h>
@@ -52,7 +53,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     startMinimized = LoadStartMinimizedSetting();
 
     // Load colors from registry
-    LoadColorsFromRegistry();
+    LoadLockKeyColorsFromRegistry();
 
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -160,7 +161,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                         } else {
                             SetKeyColor(LogiLed::KeyName::NUM_LOCK, defaultColor);
                         }
-                        SaveColorsToRegistry();
+                        SaveLockKeyColorsToRegistry();
                         break;
                     case IDC_BOX_CAPSLOCK:
                         // Show color picker for CapsLock
@@ -177,7 +178,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                         } else {
                             SetKeyColor(LogiLed::KeyName::CAPS_LOCK, defaultColor);
                         }
-                        SaveColorsToRegistry();
+                        SaveLockKeyColorsToRegistry();
                         break;
                     case IDC_BOX_SCROLLLOCK:
                         // Show color picker for ScrollLock
@@ -194,7 +195,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                         } else {
                             SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, defaultColor);
                         }
-                        SaveColorsToRegistry();
+                        SaveLockKeyColorsToRegistry();
                         break;
                     case IDC_BOX_DEFAULTCOLOR:
                         // Show color picker for default color
@@ -206,7 +207,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                         SetDefaultColor(defaultColor);
                         // set lock keys color
                         SetLockKeysColor();
-                        SaveColorsToRegistry();
+                        SaveLockKeyColorsToRegistry();
                         break;
                     case IDM_ABOUT:
                         DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
@@ -406,13 +407,18 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Initialize app monitoring
    InitializeAppMonitoring();
    
-   // Example: Add some app color profiles with lock keys feature control
-   // You can customize these or add a UI to manage them
-   AddAppColorProfile(L"notepad.exe", RGB(255, 255, 0), true);      // Yellow for Notepad, lock keys enabled
-   AddAppColorProfile(L"chrome.exe", RGB(0, 255, 255), false);      // Cyan for Chrome, lock keys disabled
-   AddAppColorProfile(L"firefox.exe", RGB(255, 165, 0), false);     // Orange for Firefox, lock keys disabled  
-   AddAppColorProfile(L"code.exe", RGB(0, 255, 0), true);           // Green for VS Code, lock keys enabled
-   AddAppColorProfile(L"devenv.exe", RGB(128, 0, 128), false);       // Purple for Visual Studio, lock keys enabled
+   // Load app profiles from registry (includes highlight color and keys)
+   LoadAppProfilesFromRegistry();
+
+   // If no profiles exist, add some sample app color profiles with lock keys feature control
+   if (GetAppProfilesCount() == 0) {
+       AddAppColorProfile(L"notepad.exe", RGB(255, 255, 0), true);      // Yellow for Notepad, lock keys enabled
+       AddAppColorProfile(L"chrome.exe", RGB(0, 255, 255), false);      // Cyan for Chrome, lock keys disabled
+       AddAppColorProfile(L"firefox.exe", RGB(255, 165, 0), false);     // Orange for Firefox, lock keys disabled  
+       AddAppColorProfile(L"code.exe", RGB(0, 255, 0), true);           // Green for VS Code, lock keys enabled
+       AddAppColorProfile(L"devenv.exe", RGB(128, 0, 128), true);       // Purple for Visual Studio, lock keys enabled
+       SaveAppProfilesToRegistry();
+   }
    
    // Check for already running apps and update colors
    CheckRunningAppsAndUpdateColors();

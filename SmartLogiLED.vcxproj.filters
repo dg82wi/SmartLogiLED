@@ -30,12 +30,18 @@
     <ClInclude Include="SmartLogiLED_Logic.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="SmartLogiLED_Config.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SmartLogiLED.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
     <ClCompile Include="SmartLogiLED_Logic.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="SmartLogiLED_Config.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
   </ItemGroup>

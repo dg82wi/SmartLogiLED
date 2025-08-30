@@ -1,10 +1,11 @@
 // SmartLogiLED_Logic.cpp : Contains the logic functions for SmartLogiLED application.
 //
-// This file contains registry functions, color management, keyboard hook logic, and app monitoring.
+// This file contains color management, keyboard hook logic, and app monitoring.
 
 #include "framework.h"
 #include "SmartLogiLED.h"
 #include "SmartLogiLED_Logic.h"
+#include "SmartLogiLED_Config.h"
 #include "LogitechLEDLib.h"
 #include "Resource.h"
 #include <commdlg.h>
@@ -23,87 +24,11 @@ extern COLORREF defaultColor;
 extern HHOOK keyboardHook;
 
 // App monitoring variables
-static std::vector<AppColorProfile> appColorProfiles;
-static std::mutex appProfilesMutex;
+std::vector<AppColorProfile> appColorProfiles;
+std::mutex appProfilesMutex;
 static std::thread appMonitorThread;
 static bool appMonitoringRunning = false;
 static HWND mainWindowHandle = nullptr;
-
-// Registry functions for start minimized setting
-void SaveStartMinimizedSetting(bool minimized) {
-    HKEY hKey;
-    LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY, 0, NULL, 
-                                REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
-    if (result == ERROR_SUCCESS) {
-        DWORD value = minimized ? 1 : 0;
-        RegSetValueExW(hKey, REGISTRY_VALUE_START_MINIMIZED, 0, REG_DWORD, 
-                     (const BYTE*)&value, sizeof(value));
-        RegCloseKey(hKey);
-    }
-}
-
-bool LoadStartMinimizedSetting() {
-    HKEY hKey;
-    LONG result = RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY, 0, KEY_READ, &hKey);
-    if (result == ERROR_SUCCESS) {
-        DWORD value = 0;
-        DWORD size = sizeof(value);
-        DWORD type = REG_DWORD;
-        if (RegQueryValueExW(hKey, REGISTRY_VALUE_START_MINIMIZED, NULL, &type, 
-                           (BYTE*)&value, &size) == ERROR_SUCCESS) {
-            RegCloseKey(hKey);
-            return value != 0;
-        }
-        RegCloseKey(hKey);
-    }
-    return false; // Default to false if setting doesn't exist
-}
-
-// Registry functions for color settings
-void SaveColorToRegistry(LPCWSTR valueName, COLORREF color) {
-    HKEY hKey;
-    LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY, 0, NULL, 
-                                REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
-    if (result == ERROR_SUCCESS) {
-        DWORD colorValue = (DWORD)color;
-        RegSetValueExW(hKey, valueName, 0, REG_DWORD, 
-                     (const BYTE*)&colorValue, sizeof(colorValue));
-        RegCloseKey(hKey);
-    }
-}
-
-COLORREF LoadColorFromRegistry(LPCWSTR valueName, COLORREF defaultValue) {
-    HKEY hKey;
-    LONG result = RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY, 0, KEY_READ, &hKey);
-    if (result == ERROR_SUCCESS) {
-        DWORD colorValue = 0;
-        DWORD size = sizeof(colorValue);
-        DWORD type = REG_DWORD;
-        if (RegQueryValueExW(hKey, valueName, NULL, &type, 
-                           (BYTE*)&colorValue, &size) == ERROR_SUCCESS) {
-            RegCloseKey(hKey);
-            return (COLORREF)colorValue;
-        }
-        RegCloseKey(hKey);
-    }
-    return defaultValue; // Return default if setting doesn't exist
-}
-
-// Save color settings to registry
-void SaveColorsToRegistry() {
-    SaveColorToRegistry(REGISTRY_VALUE_NUMLOCK_COLOR, numLockColor);
-    SaveColorToRegistry(REGISTRY_VALUE_CAPSLOCK_COLOR, capsLockColor);
-    SaveColorToRegistry(REGISTRY_VALUE_SCROLLLOCK_COLOR, scrollLockColor);
-    SaveColorToRegistry(REGISTRY_VALUE_DEFAULT_COLOR, defaultColor);
-}
-
-// Load color settings from registry
-void LoadColorsFromRegistry() {
-    numLockColor = LoadColorFromRegistry(REGISTRY_VALUE_NUMLOCK_COLOR, RGB(0, 179, 0));
-    capsLockColor = LoadColorFromRegistry(REGISTRY_VALUE_CAPSLOCK_COLOR, RGB(0, 179, 0));
-    scrollLockColor = LoadColorFromRegistry(REGISTRY_VALUE_SCROLLLOCK_COLOR, RGB(0, 179, 0));
-    defaultColor = LoadColorFromRegistry(REGISTRY_VALUE_DEFAULT_COLOR, RGB(0, 89, 89));
-}
 
 // Set color for a key using Logitech LED SDK
 void SetKeyColor(LogiLed::KeyName key, COLORREF color) {
@@ -115,10 +40,9 @@ void SetKeyColor(LogiLed::KeyName key, COLORREF color) {
 
 // Set color for all keys
 void SetDefaultColor(COLORREF color) {
-    defaultColor = color;
-    int r = GetRValue(defaultColor) * 100 / 255;
-    int g = GetGValue(defaultColor) * 100 / 255;
-    int b = GetBValue(defaultColor) * 100 / 255;
+    int r = GetRValue(color) * 100 / 255;
+    int g = GetGValue(color) * 100 / 255;
+    int b = GetBValue(color) * 100 / 255;
     LogiLedSetLighting(r, g, b);
 }
 
@@ -344,7 +268,9 @@ void AppMonitorThreadProc() {
                         // App started - activate its color profile
                         profile.isActive = true;
                         SetDefaultColor(profile.appColor);
-                        SetLockKeysColor(); // Update lock key colors based on profile's lock keys setting
+                        if (profile.lockKeysEnabled) {
+                            SetLockKeysColor(); // Update lock key colors based on profile's lock keys setting
+                        }
                         break;
                     }
                 }
@@ -368,15 +294,24 @@ void AppMonitorThreadProc() {
                         
                         // Check if any other monitored app is still running
                         bool foundActiveApp = false;
+                        AppColorProfile const* activeProfile = nullptr;
                         for (const auto& otherProfile : appColorProfiles) {
                             if (otherProfile.isActive && otherProfile.appName != profile.appName) {
+                                // first active profile takes precedence
                                 foundActiveApp = true;
+                                activeProfile = &otherProfile;
                                 break;
                             }
                         }
                         
-                        // If no monitored apps are running, restore default color and enable lock keys
-                        if (!foundActiveApp) {
+                        if (foundActiveApp && activeProfile) {
+                            // Hand off lighting to remaining active profile
+                            SetDefaultColor(activeProfile->appColor);
+                            if (activeProfile->lockKeysEnabled) {
+                                SetLockKeysColor();
+                            }
+                        } else {
+                            // If no monitored apps are running, restore default color and enable lock keys
                             SetDefaultColor(defaultColor);
                             SetLockKeysColor(); // Lock keys will be enabled again (default behavior)
                         }
@@ -455,44 +390,6 @@ void RemoveAppColorProfile(const std::wstring& appName) {
     );
 }
 
-// Set app color profile active/inactive state
-void SetAppColorProfile(const std::wstring& appName, COLORREF color, bool active) {
-    std::lock_guard<std::mutex> lock(appProfilesMutex);
-    
-    for (auto& profile : appColorProfiles) {
-        std::wstring lowerExisting = profile.appName;
-        std::wstring lowerTarget = appName;
-        std::transform(lowerExisting.begin(), lowerExisting.end(), lowerExisting.begin(), ::towlower);
-        std::transform(lowerTarget.begin(), lowerTarget.end(), lowerTarget.begin(), ::towlower);
-        
-        if (lowerExisting == lowerTarget) {
-            profile.appColor = color;
-            profile.isActive = active;
-            // Don't change lockKeysEnabled in this version
-            return;
-        }
-    }
-}
-
-// Set app color profile with lock keys feature control
-void SetAppColorProfile(const std::wstring& appName, COLORREF color, bool active, bool lockKeysEnabled) {
-    std::lock_guard<std::mutex> lock(appProfilesMutex);
-    
-    for (auto& profile : appColorProfiles) {
-        std::wstring lowerExisting = profile.appName;
-        std::wstring lowerTarget = appName;
-        std::transform(lowerExisting.begin(), lowerExisting.end(), lowerExisting.begin(), ::towlower);
-        std::transform(lowerTarget.begin(), lowerTarget.end(), lowerTarget.begin(), ::towlower);
-        
-        if (lowerExisting == lowerTarget) {
-            profile.appColor = color;
-            profile.isActive = active;
-            profile.lockKeysEnabled = lockKeysEnabled;
-            return;
-        }
-    }
-}
-
 // Check if lock keys feature should be enabled based on current active profile
 bool IsLockKeysFeatureEnabled() {
     std::lock_guard<std::mutex> lock(appProfilesMutex);
@@ -508,17 +405,6 @@ bool IsLockKeysFeatureEnabled() {
     return true;
 }
 
-// Get reference to app color profiles (for UI access)
-std::vector<AppColorProfile>& GetAppColorProfiles() {
-    return appColorProfiles;
-}
-
-// Get app color profiles with thread safety
-std::vector<AppColorProfile> GetAppColorProfilesCopy() {
-    std::lock_guard<std::mutex> lock(appProfilesMutex);
-    return appColorProfiles;
-}
-
 // Check running apps and update colors immediately
 void CheckRunningAppsAndUpdateColors() {
     std::lock_guard<std::mutex> lock(appProfilesMutex);
@@ -531,13 +417,16 @@ void CheckRunningAppsAndUpdateColors() {
         bool isRunning = IsAppRunning(profile.appName);
         profile.isActive = isRunning;
         
+        // If multiple apps are running, the first one in the list takes precedence
         if (isRunning && !foundActiveApp) {
             foundActiveApp = true;
             activeColor = profile.appColor;
+            // Set the appropriate color
+            SetDefaultColor(activeColor);
+            // Set lock keys color only if lock keys feature is enabled for this profile
+            if (profile.lockKeysEnabled) {
+                SetLockKeysColor();
+            }
         }
     }
-    
-    // Set the appropriate color
-    SetDefaultColor(activeColor);
-    SetLockKeysColor(); // Maintain lock key colors
 }
