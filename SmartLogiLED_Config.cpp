@@ -95,40 +95,79 @@ void LoadLockKeyColorsFromRegistry() {
 extern std::vector<AppColorProfile> appColorProfiles;
 extern std::mutex appProfilesMutex;
 
-void SaveAppProfilesToRegistry() {
-    std::lock_guard<std::mutex> lock(appProfilesMutex);
+void AddAppProfileToRegistry(const AppColorProfile& profile) {
     HKEY hProfilesKey = nullptr;
     if (RegCreateKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, NULL,
                         REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hProfilesKey, NULL) != ERROR_SUCCESS) {
         return;
     }
-    for (const auto& profile : appColorProfiles) {
-        HKEY hAppKey = nullptr;
-        if (RegCreateKeyExW(hProfilesKey, profile.appName.c_str(), 0, NULL,
-                            REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hAppKey, NULL) == ERROR_SUCCESS) {
-            DWORD d = static_cast<DWORD>(profile.appColor);
-            RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_COLOR, 0, REG_DWORD,
-                           reinterpret_cast<const BYTE*>(&d), sizeof(d));
-            d = static_cast<DWORD>(profile.appHighlightColor);
-            RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_HIGHLIGHT_COLOR, 0, REG_DWORD,
-                           reinterpret_cast<const BYTE*>(&d), sizeof(d));
-            d = profile.lockKeysEnabled ? 1u : 0u;
-            RegSetValueExW(hAppKey, REGISTRY_VALUE_LOCK_KEYS_ENABLED, 0, REG_DWORD,
-                           reinterpret_cast<const BYTE*>(&d), sizeof(d));
-            if (!profile.highlightKeys.empty()) {
-                std::vector<DWORD> data;
-                data.reserve(profile.highlightKeys.size());
-                for (auto k : profile.highlightKeys) data.push_back(static_cast<DWORD>(k));
-                RegSetValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, 0, REG_BINARY,
-                               reinterpret_cast<const BYTE*>(data.data()),
-                               static_cast<DWORD>(data.size() * sizeof(DWORD)));
-            } else {
-                RegSetValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, 0, REG_BINARY, nullptr, 0);
-            }
-            RegCloseKey(hAppKey);
+    
+    HKEY hAppKey = nullptr;
+    if (RegCreateKeyExW(hProfilesKey, profile.appName.c_str(), 0, NULL,
+                        REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hAppKey, NULL) == ERROR_SUCCESS) {
+        DWORD d = static_cast<DWORD>(profile.appColor);
+        RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_COLOR, 0, REG_DWORD,
+                       reinterpret_cast<const BYTE*>(&d), sizeof(d));
+        d = static_cast<DWORD>(profile.appHighlightColor);
+        RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_HIGHLIGHT_COLOR, 0, REG_DWORD,
+                       reinterpret_cast<const BYTE*>(&d), sizeof(d));
+        d = profile.lockKeysEnabled ? 1u : 0u;
+        RegSetValueExW(hAppKey, REGISTRY_VALUE_LOCK_KEYS_ENABLED, 0, REG_DWORD,
+                       reinterpret_cast<const BYTE*>(&d), sizeof(d));
+        if (!profile.highlightKeys.empty()) {
+            std::vector<DWORD> data;
+            data.reserve(profile.highlightKeys.size());
+            for (auto k : profile.highlightKeys) data.push_back(static_cast<DWORD>(k));
+            RegSetValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, 0, REG_BINARY,
+                           reinterpret_cast<const BYTE*>(data.data()),
+                           static_cast<DWORD>(data.size() * sizeof(DWORD)));
+        } else {
+            RegSetValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, 0, REG_BINARY, nullptr, 0);
         }
+        RegCloseKey(hAppKey);
     }
     RegCloseKey(hProfilesKey);
+}
+
+void RemoveAppProfileFromRegistry(const std::wstring& appName) {
+    HKEY hProfilesKey = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+        // Delete the subkey for this app profile
+        RegDeleteKeyW(hProfilesKey, appName.c_str());
+        RegCloseKey(hProfilesKey);
+    }
+}
+
+void SaveAppProfilesToRegistry() {
+    std::lock_guard<std::mutex> lock(appProfilesMutex);
+    
+    // First, clear all existing profiles from registry
+    HKEY hProfilesKey = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_READ | KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+        // Enumerate and delete all existing subkeys
+        DWORD subKeyCount = 0;
+        if (RegQueryInfoKeyW(hProfilesKey, NULL, NULL, NULL, &subKeyCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+            // Collect subkey names first (since we can't delete while enumerating)
+            std::vector<std::wstring> subKeyNames;
+            for (DWORD i = 0; i < subKeyCount; ++i) {
+                wchar_t subKeyName[260];
+                DWORD nameLen = static_cast<DWORD>(std::size(subKeyName));
+                if (RegEnumKeyExW(hProfilesKey, i, subKeyName, &nameLen, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+                    subKeyNames.push_back(subKeyName);
+                }
+            }
+            // Now delete all the subkeys
+            for (const auto& subKeyName : subKeyNames) {
+                RegDeleteKeyW(hProfilesKey, subKeyName.c_str());
+            }
+        }
+        RegCloseKey(hProfilesKey);
+    }
+    
+    // Now add all current profiles
+    for (const auto& profile : appColorProfiles) {
+        AddAppProfileToRegistry(profile);
+    }
 }
 
 void LoadAppProfilesFromRegistry() {
@@ -183,4 +222,49 @@ void LoadAppProfilesFromRegistry() {
 size_t GetAppProfilesCount() {
     std::lock_guard<std::mutex> lock(appProfilesMutex);
     return appColorProfiles.size();
+}
+
+// Update specific app profile color in registry
+void UpdateAppProfileColorInRegistry(const std::wstring& appName, COLORREF newAppColor) {
+    HKEY hProfilesKey = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+        HKEY hAppKey = nullptr;
+        if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
+            DWORD d = static_cast<DWORD>(newAppColor);
+            RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_COLOR, 0, REG_DWORD,
+                           reinterpret_cast<const BYTE*>(&d), sizeof(d));
+            RegCloseKey(hAppKey);
+        }
+        RegCloseKey(hProfilesKey);
+    }
+}
+
+// Update specific app profile highlight color in registry
+void UpdateAppProfileHighlightColorInRegistry(const std::wstring& appName, COLORREF newHighlightColor) {
+    HKEY hProfilesKey = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+        HKEY hAppKey = nullptr;
+        if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
+            DWORD d = static_cast<DWORD>(newHighlightColor);
+            RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_HIGHLIGHT_COLOR, 0, REG_DWORD,
+                           reinterpret_cast<const BYTE*>(&d), sizeof(d));
+            RegCloseKey(hAppKey);
+        }
+        RegCloseKey(hProfilesKey);
+    }
+}
+
+// Update specific app profile lock keys enabled setting in registry
+void UpdateAppProfileLockKeysEnabledInRegistry(const std::wstring& appName, bool lockKeysEnabled) {
+    HKEY hProfilesKey = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+        HKEY hAppKey = nullptr;
+        if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
+            DWORD d = lockKeysEnabled ? 1u : 0u;
+            RegSetValueExW(hAppKey, REGISTRY_VALUE_LOCK_KEYS_ENABLED, 0, REG_DWORD,
+                           reinterpret_cast<const BYTE*>(&d), sizeof(d));
+            RegCloseKey(hAppKey);
+        }
+        RegCloseKey(hProfilesKey);
+    }
 }

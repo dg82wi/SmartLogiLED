@@ -3,6 +3,9 @@
 #include <string>
 #include "LogitechLEDLib.h"
 
+// Forward declaration
+struct AppColorProfile;
+
 // Registry constants
 #define REGISTRY_KEY L"SOFTWARE\\SmartLogiLED"
 #define REGISTRY_VALUE_START_MINIMIZED L"StartMinimized"
@@ -29,6 +32,13 @@ void SaveLockKeyColorsToRegistry();
 void LoadLockKeyColorsFromRegistry();
 
 // Registry persistence for app profiles (including highlight color and keys)
+void AddAppProfileToRegistry(const AppColorProfile& profile);
+void RemoveAppProfileFromRegistry(const std::wstring& appName);
 void SaveAppProfilesToRegistry();
 void LoadAppProfilesFromRegistry();
 size_t GetAppProfilesCount();
+
+// Update specific app profile colors in registry
+void UpdateAppProfileColorInRegistry(const std::wstring& appName, COLORREF newAppColor);
+void UpdateAppProfileHighlightColorInRegistry(const std::wstring& appName, COLORREF newHighlightColor);
+void UpdateAppProfileLockKeysEnabledInRegistry(const std::wstring& appName, bool lockKeysEnabled);

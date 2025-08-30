@@ -45,6 +45,11 @@ void                RefreshAppProfileCombo(HWND hWnd);
 void                ShowAddProfileDialog(HWND hWnd);
 void                RemoveSelectedProfile(HWND hWnd);
 void                UpdateActiveProfileSelection(HWND hWnd);
+void                UpdateCurrentProfileLabel(HWND hWnd);
+void                UpdateRemoveButtonState(HWND hWnd);
+void                UpdateAppProfileColorBoxes(HWND hWnd);
+void                ShowAppColorPicker(HWND hWnd, bool isHighlightColor);
+void                UpdateLockKeysCheckbox(HWND hWnd);
 
 // Entry point for the application
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -241,6 +246,43 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     case IDC_BUTTON_REMOVE_PROFILE:
                         RemoveSelectedProfile(hWnd);
                         break;
+                    case IDC_COMBO_APPPROFILE:
+                        if (HIWORD(wParam) == CBN_SELCHANGE) {
+                            UpdateRemoveButtonState(hWnd);
+                            UpdateAppProfileColorBoxes(hWnd);
+                            UpdateLockKeysCheckbox(hWnd);
+                        }
+                        break;
+                    case IDC_BOX_APPCOLOR:
+                        // Show color picker for App Color
+                        ShowAppColorPicker(hWnd, false);
+                        break;
+                    case IDC_BOX_APPHIGHLIGHTCOLOR:
+                        // Show color picker for App Highlight Color
+                        ShowAppColorPicker(hWnd, true);
+                        break;
+                    case IDC_CHECK_LOCK_KEYS_VISUALISATION:
+                        // Handle lock keys visualisation checkbox
+                        {
+                            HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+                            HWND hCheckbox = GetDlgItem(hWnd, IDC_CHECK_LOCK_KEYS_VISUALISATION);
+                            
+                            if (hCombo && hCheckbox) {
+                                int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
+                                if (selectedIndex > 0) { // Not "NONE"
+                                    WCHAR appName[256];
+                                    SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
+                                    
+                                    // Get checkbox state
+                                    bool isChecked = (SendMessage(hCheckbox, BM_GETCHECK, 0, 0) == BST_CHECKED);
+                                    
+                                    // Update the profile
+                                    UpdateAppProfileLockKeysEnabled(appName, isChecked);
+                                    UpdateAppProfileLockKeysEnabledInRegistry(appName, isChecked);
+                                }
+                            }
+                        }
+                        break;
                     default:
                         return DefWindowProc(hWnd, message, wParam, lParam);
                 }
@@ -275,6 +317,54 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     SetBkMode(hdcStatic, TRANSPARENT);
                     return (LRESULT)hBrushDefault;
                 }
+                if (hCtrl == GetDlgItem(hWnd, IDC_BOX_APPCOLOR)) {
+                    static HBRUSH hBrushAppColor = NULL;
+                    if (hBrushAppColor) DeleteObject(hBrushAppColor);
+                    
+                    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+                    int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
+                    COLORREF appColor = RGB(128, 128, 128); // Default gray
+                    
+                    if (selectedIndex > 0) { // Not "NONE"
+                        WCHAR appName[256];
+                        SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
+                        AppColorProfile* profile = GetAppProfileByName(appName);
+                        if (profile) {
+                            appColor = profile->appColor;
+                        }
+                    }
+                    
+                    hBrushAppColor = CreateSolidBrush(appColor);
+                    SetBkMode(hdcStatic, TRANSPARENT);
+                    
+                    // If NONE is selected, we'll draw the diagonal line in WM_PAINT
+                    // This just provides the background color
+                    return (LRESULT)hBrushAppColor;
+                }
+                if (hCtrl == GetDlgItem(hWnd, IDC_BOX_APPHIGHLIGHTCOLOR)) {
+                    static HBRUSH hBrushAppHighlightColor = NULL;
+                    if (hBrushAppHighlightColor) DeleteObject(hBrushAppHighlightColor);
+                    
+                    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+                    int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
+                    COLORREF appHighlightColor = RGB(128, 128, 128); // Default gray
+                    
+                    if (selectedIndex > 0) { // Not "NONE"
+                        WCHAR appName[256];
+                        SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
+                        AppColorProfile* profile = GetAppProfileByName(appName);
+                        if (profile) {
+                            appHighlightColor = profile->appHighlightColor;
+                        }
+                    }
+                    
+                    hBrushAppHighlightColor = CreateSolidBrush(appHighlightColor);
+                    SetBkMode(hdcStatic, TRANSPARENT);
+                    
+                    // If NONE is selected, we'll draw the diagonal line in WM_PAINT
+                    // This just provides the background color
+                    return (LRESULT)hBrushAppHighlightColor;
+                }
             }
             break;
         case WM_PAINT:
@@ -282,8 +372,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                 // Paint color boxes
                 PAINTSTRUCT ps;
                 HDC hdc = BeginPaint(hWnd, &ps);
+                
                 RECT r;
                 HWND hBox;
+                
+                // Paint lock key color boxes
                 hBox = GetDlgItem(hWnd, IDC_BOX_NUMLOCK);
                 if (hBox) {
                     GetWindowRect(hBox, &r);
@@ -316,7 +409,82 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     FillRect(hdc, &r, brush);
                     DeleteObject(brush);
                 }
+                
                 EndPaint(hWnd, &ps);
+            }
+            break;
+        case WM_DRAWITEM:
+            {
+                DRAWITEMSTRUCT* pDIS = (DRAWITEMSTRUCT*)lParam;
+                if (pDIS->CtlType == ODT_STATIC) {
+                    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+                    int selectedIndex = hCombo ? (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0) : CB_ERR;
+                    
+                    if (pDIS->CtlID == IDC_BOX_APPCOLOR) {
+                        COLORREF appColor = RGB(128, 128, 128); // Default gray
+                        
+                        if (selectedIndex > 0) { // Not "NONE"
+                            WCHAR appName[256];
+                            SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
+                            AppColorProfile* profile = GetAppProfileByName(appName);
+                            if (profile) {
+                                appColor = profile->appColor;
+                            }
+                        }
+                        
+                        // Fill the rectangle with the color
+                        HBRUSH brush = CreateSolidBrush(appColor);
+                        FillRect(pDIS->hDC, &pDIS->rcItem, brush);
+                        DeleteObject(brush);
+                        
+                        // Draw red diagonal line if "NONE" is selected (deactivated state)
+                        if (selectedIndex == 0 || selectedIndex == CB_ERR) {
+                            HPEN redPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0)); // Bold red pen
+                            HPEN oldPen = (HPEN)SelectObject(pDIS->hDC, redPen);
+                            
+                            // Draw diagonal line from top-left to bottom-right
+                            MoveToEx(pDIS->hDC, pDIS->rcItem.left + 2, pDIS->rcItem.top + 2, NULL);
+                            LineTo(pDIS->hDC, pDIS->rcItem.right - 2, pDIS->rcItem.bottom - 2);
+                            
+                            SelectObject(pDIS->hDC, oldPen);
+                            DeleteObject(redPen);
+                        }
+                        
+                        return TRUE;
+                    }
+                    else if (pDIS->CtlID == IDC_BOX_APPHIGHLIGHTCOLOR) {
+                        COLORREF appHighlightColor = RGB(128, 128, 128); // Default gray
+                        
+                        if (selectedIndex > 0) { // Not "NONE"
+                            WCHAR appName[256];
+                            SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
+                            AppColorProfile* profile = GetAppProfileByName(appName);
+                            if (profile) {
+                                appHighlightColor = profile->appHighlightColor;
+                            }
+                        }
+                        
+                        // Fill the rectangle with the color
+                        HBRUSH brush = CreateSolidBrush(appHighlightColor);
+                        FillRect(pDIS->hDC, &pDIS->rcItem, brush);
+                        DeleteObject(brush);
+                        
+                        // Draw red diagonal line if "NONE" is selected (deactivated state)
+                        if (selectedIndex == 0 || selectedIndex == CB_ERR) {
+                            HPEN redPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0)); // Bold red pen
+                            HPEN oldPen = (HPEN)SelectObject(pDIS->hDC, redPen);
+                            
+                            // Draw diagonal line from top-left to bottom-right
+                            MoveToEx(pDIS->hDC, pDIS->rcItem.left + 2, pDIS->rcItem.top + 2, NULL);
+                            LineTo(pDIS->hDC, pDIS->rcItem.right - 2, pDIS->rcItem.bottom - 2);
+                            
+                            SelectObject(pDIS->hDC, oldPen);
+                            DeleteObject(redPen);
+                        }
+                        
+                        return TRUE;
+                    }
+                }
             }
             break;
         case WM_DESTROY:
@@ -358,6 +526,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             break;
         case WM_UPDATE_PROFILE_COMBO: // Custom message to update profile combo box
             UpdateActiveProfileSelection(hWnd);
+            UpdateCurrentProfileLabel(hWnd);
+            UpdateRemoveButtonState(hWnd);
+            UpdateAppProfileColorBoxes(hWnd);
+            UpdateLockKeysCheckbox(hWnd);
             break;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
@@ -372,7 +544,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Fixed window size - increased height to accommodate new App Profile section
    HWND hWnd = CreateWindowW(szWindowClass, szTitle,
       WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-      CW_USEDEFAULT, 0, 450, 420, nullptr, nullptr, hInstance, nullptr);
+      CW_USEDEFAULT, 0, 440, 460, nullptr, nullptr, hInstance, nullptr);
    if (!hWnd) return FALSE;
 
    // Group Box for lock keys
@@ -392,20 +564,26 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    CreateWindowW(L"STATIC", L"Default Color", WS_VISIBLE | WS_CHILD | SS_CENTER, 340, 95, 60, 40, hWnd, (HMENU)IDC_LABEL_DEFAULTCOLOR, hInstance, nullptr);
 
    // Group Box for App Profiles
-   HWND hAppGroup = CreateWindowW(L"BUTTON", L"App Profile", WS_VISIBLE | WS_CHILD | BS_GROUPBOX,
-      20, 160, 380, 80, hWnd, (HMENU)IDC_GROUP_APPPROFILE, hInstance, nullptr);
-
+   HWND hAppGroup = CreateWindowW(L"BUTTON", L"App Profile", WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 20, 160, 380, 220, hWnd, (HMENU)IDC_GROUP_APPPROFILE, hInstance, nullptr);
+   // Current Profile Label
+   CreateWindowW(L"STATIC", L"Profile in use: NONE", WS_VISIBLE | WS_CHILD, 40, 190, 300, 15, hWnd, (HMENU)IDC_LABEL_CURRENT_PROFILE, hInstance, nullptr);
    // Combo Box for App Profiles
-   HWND hCombo = CreateWindowW(L"COMBOBOX", NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | WS_VSCROLL,
-      40, 190, 200, 200, hWnd, (HMENU)IDC_COMBO_APPPROFILE, hInstance, nullptr);
-
+   HWND hCombo = CreateWindowW(L"COMBOBOX", NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | WS_VSCROLL, 40, 220, 200, 200, hWnd, (HMENU)IDC_COMBO_APPPROFILE, hInstance, nullptr);
    // Add Profile Button
-   CreateWindowW(L"BUTTON", L"+", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-      250, 190, 30, 25, hWnd, (HMENU)IDC_BUTTON_ADD_PROFILE, hInstance, nullptr);
-
+   CreateWindowW(L"BUTTON", L"+", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 250, 220, 30, 25, hWnd, (HMENU)IDC_BUTTON_ADD_PROFILE, hInstance, nullptr);
    // Remove Profile Button  
-   CreateWindowW(L"BUTTON", L"-", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-      290, 190, 30, 25, hWnd, (HMENU)IDC_BUTTON_REMOVE_PROFILE, hInstance, nullptr);
+   CreateWindowW(L"BUTTON", L"-", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 290, 220, 30, 25, hWnd, (HMENU)IDC_BUTTON_REMOVE_PROFILE, hInstance, nullptr);
+
+   // App Color Box and Label
+   CreateWindowW(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_NOTIFY | SS_OWNERDRAW, 40, 260, 60, 60, hWnd, (HMENU)IDC_BOX_APPCOLOR, hInstance, nullptr);
+   CreateWindowW(L"STATIC", L"App Color", WS_VISIBLE | WS_CHILD | SS_CENTER, 40, 325, 60, 15, hWnd, (HMENU)IDC_LABEL_APPCOLOR, hInstance, nullptr);
+
+   // App Highlight Color Box and Label
+   CreateWindowW(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_NOTIFY | SS_OWNERDRAW, 140, 260, 60, 60, hWnd, (HMENU)IDC_BOX_APPHIGHLIGHTCOLOR, hInstance, nullptr);
+   CreateWindowW(L"STATIC", L"Highlight Color", WS_VISIBLE | WS_CHILD | SS_CENTER, 140, 325, 60, 15, hWnd, (HMENU)IDC_LABEL_APPHIGHLIGHTCOLOR, hInstance, nullptr);
+
+   // Lock Keys Visualisation Checkbox
+   CreateWindowW(L"BUTTON", L"Lock Keys Visualisation", WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX, 240, 280, 150, 20, hWnd, (HMENU)IDC_CHECK_LOCK_KEYS_VISUALISATION, hInstance, nullptr);
 
    // Show window according to start minimized setting
    if (startMinimized) {
@@ -462,7 +640,19 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    
    // Update the combo box to reflect any displayed profiles after checking running apps
    UpdateActiveProfileSelection(hWnd);
+   
+   // Update the current profile label
+   UpdateCurrentProfileLabel(hWnd);
 
+   // Update the remove button state
+   UpdateRemoveButtonState(hWnd);
+   
+   // Update app profile color boxes
+   UpdateAppProfileColorBoxes(hWnd);
+   
+   // Update lock keys checkbox
+   UpdateLockKeysCheckbox(hWnd);
+   
    // Set up keyboard hook
    keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
    
@@ -503,13 +693,17 @@ void RefreshAppProfileCombo(HWND hWnd) {
     HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
     if (hCombo) {
         PopulateAppProfileCombo(hCombo);
+        UpdateCurrentProfileLabel(hWnd);
+        UpdateRemoveButtonState(hWnd);
+        UpdateAppProfileColorBoxes(hWnd);
+        UpdateLockKeysCheckbox(hWnd);
     }
 }
 
 // Show dialog to add a new app profile
 void ShowAddProfileDialog(HWND hWnd) {
     // Create a simple input dialog
-    WCHAR appName[256] = L"";
+    WCHAR appName[256] = L"";;
     
     // Use a simulated input - in a real implementation you would create a proper dialog resource
     // For now, let's use a hardcoded example that users can see working
@@ -535,7 +729,15 @@ void ShowAddProfileDialog(HWND hWnd) {
         } else {
             // Add the profile
             AddAppColorProfile(sampleAppName, sampleColor, lockKeysEnabled);
-            SaveAppProfilesToRegistry();
+            
+            // Get the added profile and save it to registry
+            std::vector<AppColorProfile> profiles = GetAppColorProfilesCopy();
+            for (const auto& profile : profiles) {
+                if (profile.appName == sampleAppName) {
+                    AddAppProfileToRegistry(profile);
+                    break;
+                }
+            }
             
             // Refresh the combo box
             RefreshAppProfileCombo(hWnd);
@@ -563,14 +765,12 @@ void RemoveSelectedProfile(HWND hWnd) {
     // Confirm removal
     std::wstring message = L"Remove profile for: " + std::wstring(appName) + L"?";
     if (MessageBoxW(hWnd, message.c_str(), L"Confirm Removal", MB_YESNO) == IDYES) {
-        // Remove the profile
+        // Remove the profile from memory and registry
         RemoveAppColorProfile(appName);
-        SaveAppProfilesToRegistry();
+        RemoveAppProfileFromRegistry(appName);
         
         // Refresh the combo box
         RefreshAppProfileCombo(hWnd);
-        
-        MessageBoxW(hWnd, L"Profile removed successfully", L"Profile Removed", MB_OK);
     }
 }
 
@@ -592,6 +792,138 @@ void UpdateActiveProfileSelection(HWND hWnd) {
     
     // If no profile is displayed, select "NONE"
     SendMessage(hCombo, CB_SETCURSEL, 0, 0);
+}
+
+// Update the current profile label to show which profile is currently active
+void UpdateCurrentProfileLabel(HWND hWnd) {
+    HWND hLabel = GetDlgItem(hWnd, IDC_LABEL_CURRENT_PROFILE);
+    if (!hLabel) return;
+    
+    std::vector<AppColorProfile> profiles = GetAppColorProfilesCopy();
+    
+    // Find the currently displayed profile (the one controlling colors)
+    for (const auto& profile : profiles) {
+        if (profile.isProfileCurrentlyInUse) {
+            std::wstring labelText = L"Profile in use: " + profile.appName;
+            SetWindowTextW(hLabel, labelText.c_str());
+            return;
+        }
+    }
+    
+    // If no profile is displayed, show "NONE"
+    SetWindowTextW(hLabel, L"Profile in use: NONE");
+}
+
+// Update the remove button state based on current combo box selection
+void UpdateRemoveButtonState(HWND hWnd) {
+    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+    HWND hRemoveButton = GetDlgItem(hWnd, IDC_BUTTON_REMOVE_PROFILE);
+    
+    if (!hCombo || !hRemoveButton) return;
+    
+    int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
+    
+    // Disable the remove button if "NONE" is selected (index 0) or no selection
+    if (selectedIndex == CB_ERR || selectedIndex == 0) {
+        EnableWindow(hRemoveButton, FALSE);
+    } else {
+        EnableWindow(hRemoveButton, TRUE);
+    }
+}
+
+// Update app profile color boxes to show colors from selected profile
+void UpdateAppProfileColorBoxes(HWND hWnd) {
+    HWND hAppColorBox = GetDlgItem(hWnd, IDC_BOX_APPCOLOR);
+    HWND hAppHighlightColorBox = GetDlgItem(hWnd, IDC_BOX_APPHIGHLIGHTCOLOR);
+    
+    if (hAppColorBox) {
+        InvalidateRect(hAppColorBox, NULL, TRUE);
+        UpdateWindow(hAppColorBox); // Force immediate redraw
+    }
+    if (hAppHighlightColorBox) {
+        InvalidateRect(hAppHighlightColorBox, NULL, TRUE);
+        UpdateWindow(hAppHighlightColorBox); // Force immediate redraw
+    }
+}
+
+// Show color picker for app profile colors
+void ShowAppColorPicker(HWND hWnd, bool isHighlightColor) {
+    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+    if (!hCombo) return;
+    
+    int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
+    if (selectedIndex == CB_ERR || selectedIndex == 0) {
+        // log to debug console
+		OutputDebugStringW(L"No valid profile selected for color change.\n");
+        return;
+    }
+    
+    // Get the selected app name
+    WCHAR appName[256];
+    SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
+    
+    // Get the current profile
+    AppColorProfile* profile = GetAppProfileByName(appName);
+    if (!profile) {
+        MessageBoxW(hWnd, L"Profile not found", L"Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+    
+    // Get current color
+    COLORREF currentColor = isHighlightColor ? profile->appHighlightColor : profile->appColor;
+    
+    // Show color picker
+    CHOOSECOLOR cc;
+    ZeroMemory(&cc, sizeof(cc));
+    cc.lStructSize = sizeof(cc);
+    cc.hwndOwner = hWnd;
+    cc.rgbResult = currentColor;
+    COLORREF custColors[16] = {};
+    cc.lpCustColors = custColors;
+    cc.Flags = CC_FULLOPEN | CC_RGBINIT;
+    
+    if (ChooseColor(&cc)) {
+        // Update the profile color
+        if (isHighlightColor) {
+            UpdateAppProfileHighlightColor(appName, cc.rgbResult);
+            UpdateAppProfileHighlightColorInRegistry(appName, cc.rgbResult);
+        } else {
+            UpdateAppProfileColor(appName, cc.rgbResult);
+            UpdateAppProfileColorInRegistry(appName, cc.rgbResult);
+        }
+        
+        // Update the color boxes display
+        UpdateAppProfileColorBoxes(hWnd);
+    }
+}
+
+// Update the lock keys checkbox state based on current profile selection
+void UpdateLockKeysCheckbox(HWND hWnd) {
+    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+    HWND hCheckbox = GetDlgItem(hWnd, IDC_CHECK_LOCK_KEYS_VISUALISATION);
+    
+    if (!hCombo || !hCheckbox) return;
+    
+    int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
+    
+    if (selectedIndex == CB_ERR || selectedIndex == 0) {
+        // "NONE" selected - disable checkbox and uncheck it
+        EnableWindow(hCheckbox, FALSE);
+        SendMessage(hCheckbox, BM_SETCHECK, BST_UNCHECKED, 0);
+    } else {
+        // Profile selected - enable checkbox and set state based on profile
+        EnableWindow(hCheckbox, TRUE);
+        
+        WCHAR appName[256];
+        SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
+        AppColorProfile* profile = GetAppProfileByName(appName);
+        
+        if (profile) {
+            SendMessage(hCheckbox, BM_SETCHECK, profile->lockKeysEnabled ? BST_CHECKED : BST_UNCHECKED, 0);
+        } else {
+            SendMessage(hCheckbox, BM_SETCHECK, BST_CHECKED, 0); // Default to checked
+        }
+    }
 }
 
 // Callback function for the About dialog box

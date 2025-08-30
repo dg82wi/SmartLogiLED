@@ -49,5 +49,11 @@ AppColorProfile* GetDisplayedProfile(); // Returns nullptr if no profile is disp
 // Get the name of the most recently activated profile
 std::wstring GetLastActivatedProfileName(); // Returns empty string if none
 
+// App profile color update functions
+void UpdateAppProfileColor(const std::wstring& appName, COLORREF newAppColor);
+void UpdateAppProfileHighlightColor(const std::wstring& appName, COLORREF newHighlightColor);
+void UpdateAppProfileLockKeysEnabled(const std::wstring& appName, bool lockKeysEnabled);
+AppColorProfile* GetAppProfileByName(const std::wstring& appName);
+
 // Keyboard hook procedure
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);

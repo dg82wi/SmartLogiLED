@@ -299,7 +299,7 @@ void AppMonitorThreadProc() {
                                     p.isProfileCurrentlyInUse = false;
                                     // Debug message for isProfileCurrentlyInUse change
                                     std::wstringstream debugMsg2;
-                                    debugMsg2 << L"[DEBUG] Profile " << p.appName << L" - isProfileCurrentlyInUse changed to FALSE (handoff to most recent)\n";
+                                    debugMsg2 << L"[DEBUG] Profile " << p.appName << L" - isProfilecurrentlyInUse changed to FALSE (handoff to most recent)\n";
                                     OutputDebugStringW(debugMsg2.str().c_str());
                                 }
                             }
@@ -308,7 +308,7 @@ void AppMonitorThreadProc() {
                             
                             // Debug message for isProfileCurrentlyInUse change
                             std::wstringstream debugMsg3;
-                            debugMsg3 << L"[DEBUG] Profile " << profile.appName << L" - isProfileCurrentlyInUse changed to TRUE (most recently activated)\n";
+                            debugMsg3 << L"[DEBUG] Profile " << profile.appName << L" - isProfilecurrentlyInUse changed to TRUE (most recently activated)\n";
                             OutputDebugStringW(debugMsg3.str().c_str());
                             
                             SetDefaultColor(profile.appColor);
@@ -517,7 +517,7 @@ void CheckRunningAppsAndUpdateColors() {
         if (profile.isProfileCurrentlyInUse) {
             profile.isProfileCurrentlyInUse = false;
             std::wstringstream debugMsg;
-            debugMsg << L"[DEBUG] Profile " << profile.appName << L" - isProfileCurrentlyInUse changed to FALSE (scan reset)\n";
+            debugMsg << L"[DEBUG] Profile " << profile.appName << L" - isProfilecurrentlyInUse changed to FALSE (scan reset)\n";
             OutputDebugStringW(debugMsg.str().c_str());
         }
     }
@@ -577,7 +577,7 @@ void CheckRunningAppsAndUpdateColors() {
         
         // Debug message for isProfileCurrentlyInUse change
         std::wstringstream debugMsg;
-        debugMsg << L"[DEBUG] Profile " << selectedProfile->appName << L" - isProfileCurrentlyInUse changed to TRUE (scan - priority: " 
+        debugMsg << L"[DEBUG] Profile " << selectedProfile->appName << L" - isProfilecurrentlyInUse changed to TRUE (scan - priority: " 
                  << (selectedProfile->appName == lastActivatedProfile ? L"most recent" : L"first available") << L")\n";
         OutputDebugStringW(debugMsg.str().c_str());
         
@@ -626,4 +626,95 @@ void SetMainWindowHandle(HWND hWnd) {
 std::wstring GetLastActivatedProfileName() {
     std::lock_guard<std::mutex> lock(appProfilesMutex);
     return lastActivatedProfile;
+}
+
+// Update app profile color
+void UpdateAppProfileColor(const std::wstring& appName, COLORREF newAppColor) {
+    std::lock_guard<std::mutex> lock(appProfilesMutex);
+    
+    for (auto& profile : appColorProfiles) {
+        std::wstring lowerExisting = profile.appName;
+        std::wstring lowerTarget = appName;
+        std::transform(lowerExisting.begin(), lowerExisting.end(), lowerExisting.begin(), ::towlower);
+        std::transform(lowerTarget.begin(), lowerTarget.end(), lowerTarget.begin(), ::towlower);
+        
+        if (lowerExisting == lowerTarget) {
+            profile.appColor = newAppColor;
+            
+            // If this profile is currently displayed, update the colors immediately
+            if (profile.isProfileCurrentlyInUse) {
+                SetDefaultColor(newAppColor);
+                if (profile.lockKeysEnabled) {
+                    SetLockKeysColor();
+                }
+            }
+            break;
+        }
+    }
+}
+
+// Update app profile highlight color
+void UpdateAppProfileHighlightColor(const std::wstring& appName, COLORREF newHighlightColor) {
+    std::lock_guard<std::mutex> lock(appProfilesMutex);
+    
+    for (auto& profile : appColorProfiles) {
+        std::wstring lowerExisting = profile.appName;
+        std::wstring lowerTarget = appName;
+        std::transform(lowerExisting.begin(), lowerExisting.end(), lowerExisting.begin(), ::towlower);
+        std::transform(lowerTarget.begin(), lowerTarget.end(), lowerTarget.begin(), ::towlower);
+        
+        if (lowerExisting == lowerTarget) {
+            profile.appHighlightColor = newHighlightColor;
+            // Highlight color updates don't immediately affect displayed colors
+            // They're used for UI representation and specific key highlighting
+            break;
+        }
+    }
+}
+
+// Update app profile lock keys enabled setting
+void UpdateAppProfileLockKeysEnabled(const std::wstring& appName, bool lockKeysEnabled) {
+    std::lock_guard<std::mutex> lock(appProfilesMutex);
+    
+    for (auto& profile : appColorProfiles) {
+        std::wstring lowerExisting = profile.appName;
+        std::wstring lowerTarget = appName;
+        std::transform(lowerExisting.begin(), lowerExisting.end(), lowerExisting.begin(), ::towlower);
+        std::transform(lowerTarget.begin(), lowerTarget.end(), lowerTarget.begin(), ::towlower);
+        
+        if (lowerExisting == lowerTarget) {
+            profile.lockKeysEnabled = lockKeysEnabled;
+            
+            // If this profile is currently displayed, update lock keys behavior immediately
+            if (profile.isProfileCurrentlyInUse) {
+                if (lockKeysEnabled) {
+                    SetLockKeysColor(); // Enable lock key color visualization
+                } else {
+                    // Disable lock keys - set them to default color
+                    SetKeyColor(LogiLed::KeyName::NUM_LOCK, defaultColor);
+                    SetKeyColor(LogiLed::KeyName::CAPS_LOCK, defaultColor);
+                    SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, defaultColor);
+                }
+            }
+            break;
+        }
+    }
+}
+
+// Get app profile by name
+AppColorProfile* GetAppProfileByName(const std::wstring& appName) {
+    std::lock_guard<std::mutex> lock(appProfilesMutex);
+    
+    for (auto& profile : appColorProfiles) {
+        std::wstring lowerExisting = profile.appName;
+        std::wstring lowerTarget = appName;
+        std::transform(lowerExisting.begin(), lowerExisting.end(), lowerExisting.begin(), ::towlower);
+        std::transform(lowerTarget.begin(), lowerTarget.end(), lowerTarget.begin(), ::towlower);
+        
+        if (lowerExisting == lowerTarget) {
+            return &profile;
+        }
+    }
+    
+    return nullptr;
 }
