@@ -1,6 +1,7 @@
 #pragma once
 #include <windows.h>
 #include <string>
+#include <vector>
 #include "LogitechLEDLib.h"
 
 // Forward declaration
@@ -42,3 +43,4 @@ size_t GetAppProfilesCount();
 void UpdateAppProfileColorInRegistry(const std::wstring& appName, COLORREF newAppColor);
 void UpdateAppProfileHighlightColorInRegistry(const std::wstring& appName, COLORREF newHighlightColor);
 void UpdateAppProfileLockKeysEnabledInRegistry(const std::wstring& appName, bool lockKeysEnabled);
+void UpdateAppProfileHighlightKeysInRegistry(const std::wstring& appName, const std::vector<LogiLed::KeyName>& highlightKeys);

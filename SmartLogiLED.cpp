@@ -11,6 +11,8 @@
 #include "Resource.h"
 #include <shellapi.h>
 #include <commdlg.h>
+#include <algorithm>
+#include <vector>
 
 #define MAX_LOADSTRING 100
 #define WM_UPDATE_PROFILE_COMBO (WM_USER + 100)
@@ -37,6 +39,7 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    Help(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK    KeysDialog(HWND, UINT, WPARAM, LPARAM);
 void                CreateTrayIcon(HWND hWnd);
 void                RemoveTrayIcon();
 void                ShowTrayContextMenu(HWND hWnd);
@@ -50,6 +53,8 @@ void                UpdateRemoveButtonState(HWND hWnd);
 void                UpdateAppProfileColorBoxes(HWND hWnd);
 void                ShowAppColorPicker(HWND hWnd, bool isHighlightColor);
 void                UpdateLockKeysCheckbox(HWND hWnd);
+void                ShowKeysDialog(HWND hWnd);
+void                UpdateKeysButtonState(HWND hWnd);
 
 // Entry point for the application
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -108,7 +113,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hInstance      = hInstance;
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_SMARTLOGILED));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
+    wcex.hbrBackground  = (HBRUSH)(COLOR_BTNFACE+1); // Changed from COLOR_WINDOW to COLOR_BTNFACE
     wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_SMARTLOGILED);
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
@@ -226,6 +231,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     case IDM_HELP:
                         DialogBox(hInst, MAKEINTRESOURCE(IDD_HELPBOX), hWnd, Help);
                         break;
+                    case IDM_START_MINIMIZED:
+                        startMinimized = !startMinimized;
+                        SaveStartMinimizedSetting(startMinimized);
+                        break;
                     case IDM_EXIT:
                         DestroyWindow(hWnd);
                         break;
@@ -246,11 +255,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     case IDC_BUTTON_REMOVE_PROFILE:
                         RemoveSelectedProfile(hWnd);
                         break;
+                    case IDC_BUTTON_KEYS:
+                        ShowKeysDialog(hWnd);
+                        break;
                     case IDC_COMBO_APPPROFILE:
                         if (HIWORD(wParam) == CBN_SELCHANGE) {
                             UpdateRemoveButtonState(hWnd);
                             UpdateAppProfileColorBoxes(hWnd);
                             UpdateLockKeysCheckbox(hWnd);
+                            UpdateKeysButtonState(hWnd);
                         }
                         break;
                     case IDC_BOX_APPCOLOR:
@@ -293,6 +306,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                 // Set brush color for static controls (color boxes)
                 HDC hdcStatic = (HDC)wParam;
                 HWND hCtrl = (HWND)lParam;
+               
+                // Existing color box handling...
                 if (hCtrl == GetDlgItem(hWnd, IDC_BOX_NUMLOCK)) {
                     if (hBrushNum) DeleteObject(hBrushNum);
                     hBrushNum = CreateSolidBrush(numLockColor);
@@ -531,6 +546,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             UpdateAppProfileColorBoxes(hWnd);
             UpdateLockKeysCheckbox(hWnd);
             break;
+        case WM_INITMENUPOPUP:
+            // Update menu checkmarks when menu is about to be displayed
+            {
+                HMENU hMenu = (HMENU)wParam;
+                if (hMenu) {
+                    // Check/uncheck the "Start minimized" menu item
+                    CheckMenuItem(hMenu, IDM_START_MINIMIZED, 
+                        MF_BYCOMMAND | (startMinimized ? MF_CHECKED : MF_UNCHECKED));
+                }
+            }
+            break;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
     }
@@ -573,17 +599,19 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    CreateWindowW(L"BUTTON", L"+", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 250, 220, 30, 25, hWnd, (HMENU)IDC_BUTTON_ADD_PROFILE, hInstance, nullptr);
    // Remove Profile Button  
    CreateWindowW(L"BUTTON", L"-", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 290, 220, 30, 25, hWnd, (HMENU)IDC_BUTTON_REMOVE_PROFILE, hInstance, nullptr);
+   // Keys Button
+   CreateWindowW(L"BUTTON", L"Keys", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 330, 220, 50, 25, hWnd, (HMENU)IDC_BUTTON_KEYS, hInstance, nullptr);
 
    // App Color Box and Label
    CreateWindowW(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_NOTIFY | SS_OWNERDRAW, 40, 260, 60, 60, hWnd, (HMENU)IDC_BOX_APPCOLOR, hInstance, nullptr);
-   CreateWindowW(L"STATIC", L"App Color", WS_VISIBLE | WS_CHILD | SS_CENTER, 40, 325, 60, 15, hWnd, (HMENU)IDC_LABEL_APPCOLOR, hInstance, nullptr);
+   CreateWindowW(L"STATIC", L"App Color", WS_VISIBLE | WS_CHILD | SS_CENTER, 40, 325, 60, 30, hWnd, (HMENU)IDC_LABEL_APPCOLOR, hInstance, nullptr);
 
    // App Highlight Color Box and Label
    CreateWindowW(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_NOTIFY | SS_OWNERDRAW, 140, 260, 60, 60, hWnd, (HMENU)IDC_BOX_APPHIGHLIGHTCOLOR, hInstance, nullptr);
-   CreateWindowW(L"STATIC", L"Highlight Color", WS_VISIBLE | WS_CHILD | SS_CENTER, 140, 325, 60, 15, hWnd, (HMENU)IDC_LABEL_APPHIGHLIGHTCOLOR, hInstance, nullptr);
+   CreateWindowW(L"STATIC", L"Highlight Color", WS_VISIBLE | WS_CHILD | SS_CENTER, 140, 325, 60, 30, hWnd, (HMENU)IDC_LABEL_APPHIGHLIGHTCOLOR, hInstance, nullptr);
 
    // Lock Keys Visualisation Checkbox
-   CreateWindowW(L"BUTTON", L"Lock Keys Visualisation", WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX, 240, 280, 150, 20, hWnd, (HMENU)IDC_CHECK_LOCK_KEYS_VISUALISATION, hInstance, nullptr);
+   CreateWindowW(L"BUTTON", L"Lock Keys", WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX, 240, 280, 100, 20, hWnd, (HMENU)IDC_CHECK_LOCK_KEYS_VISUALISATION, hInstance, nullptr);
 
    // Show window according to start minimized setting
    if (startMinimized) {
@@ -679,7 +707,7 @@ void PopulateAppProfileCombo(HWND hCombo) {
         
         // Check if this profile is currently displayed (controlling colors)
         // Use the FIRST displayed profile found (should only be one now)
-        if (profile.isProfileCurrentlyInUse && displayedProfileIndex == 0) {
+        if (profile.isProfileCurrInUse && displayedProfileIndex == 0) {
             displayedProfileIndex = (int)i + 1; // +1 because of "NONE" at index 0
         }
     }
@@ -783,7 +811,7 @@ void UpdateActiveProfileSelection(HWND hWnd) {
     
     // Find the currently displayed profile (the one controlling colors)
     for (size_t i = 0; i < profiles.size(); i++) {
-        if (profiles[i].isProfileCurrentlyInUse) {
+        if (profiles[i].isProfileCurrInUse) {
             // Select the displayed profile (index + 1 because of "NONE" at index 0)
             SendMessage(hCombo, CB_SETCURSEL, i + 1, 0);
             return;
@@ -803,7 +831,7 @@ void UpdateCurrentProfileLabel(HWND hWnd) {
     
     // Find the currently displayed profile (the one controlling colors)
     for (const auto& profile : profiles) {
-        if (profile.isProfileCurrentlyInUse) {
+        if (profile.isProfileCurrInUse) {
             std::wstring labelText = L"Profile in use: " + profile.appName;
             SetWindowTextW(hLabel, labelText.c_str());
             return;
@@ -828,6 +856,26 @@ void UpdateRemoveButtonState(HWND hWnd) {
         EnableWindow(hRemoveButton, FALSE);
     } else {
         EnableWindow(hRemoveButton, TRUE);
+    }
+    
+    // Also update the Keys button state
+    UpdateKeysButtonState(hWnd);
+}
+
+// Update the keys button state based on current combo box selection
+void UpdateKeysButtonState(HWND hWnd) {
+    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+    HWND hKeysButton = GetDlgItem(hWnd, IDC_BUTTON_KEYS);
+    
+    if (!hCombo || !hKeysButton) return;
+    
+    int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
+    
+    // Disable the keys button if "NONE" is selected (index 0) or no selection
+    if (selectedIndex == CB_ERR || selectedIndex == 0) {
+        EnableWindow(hKeysButton, FALSE);
+    } else {
+        EnableWindow(hKeysButton, TRUE);
     }
 }
 
@@ -990,4 +1038,147 @@ INT_PTR CALLBACK Help(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     }
     return (INT_PTR)FALSE;
+}
+
+// Global variables for Keys dialog
+static std::vector<LogiLed::KeyName> currentHighlightKeys;
+static std::wstring currentAppNameForKeys;
+static HHOOK keysDialogHook = nullptr;
+
+// Low-level keyboard hook for the Keys dialog
+LRESULT CALLBACK KeysDialogKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    if (nCode >= 0 && wParam == WM_KEYDOWN) {
+        KBDLLHOOKSTRUCT* pKeyStruct = (KBDLLHOOKSTRUCT*)lParam;
+        
+        // Convert virtual key to LogiLed key
+        LogiLed::KeyName logiKey = VirtualKeyToLogiLedKey(pKeyStruct->vkCode);
+        
+        // Check if key is already in the list
+        auto it = std::find(currentHighlightKeys.begin(), currentHighlightKeys.end(), logiKey);
+        
+        if (it != currentHighlightKeys.end()) {
+            // Key is in list, remove it
+            currentHighlightKeys.erase(it);
+        } else {
+            // Key is not in list, add it
+            currentHighlightKeys.push_back(logiKey);
+        }
+        
+        // Update the text field
+        HWND hEditKeys = FindWindow(nullptr, L"Configure Highlight Keys");
+        if (hEditKeys) {
+            hEditKeys = GetDlgItem(hEditKeys, IDC_EDIT_KEYS);
+            if (hEditKeys) {
+                std::wstring keysText = FormatHighlightKeysForDisplay(currentHighlightKeys);
+                SetWindowTextW(hEditKeys, keysText.c_str());
+            }
+        }
+        
+        // Prevent the key from being processed by other applications
+        return 1;
+    }
+    
+    return CallNextHookEx(keysDialogHook, nCode, wParam, lParam);
+}
+
+// Callback function for the Keys dialog box
+INT_PTR CALLBACK KeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_INITDIALOG:
+    {
+        // Get the app name and current keys from the selected profile
+        HWND hMainWnd = GetParent(hDlg);
+        HWND hCombo = GetDlgItem(hMainWnd, IDC_COMBO_APPPROFILE);
+        
+        if (hCombo) {
+            int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
+            if (selectedIndex > 0) { // Not "NONE"
+                WCHAR appName[256];
+                SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
+                currentAppNameForKeys = appName;
+                
+                // Get current highlight keys for this profile
+                AppColorProfile* profile = GetAppProfileByName(currentAppNameForKeys);
+                if (profile) {
+                    currentHighlightKeys = profile->highlightKeys;
+                } else {
+                    currentHighlightKeys.clear();
+                }
+                
+                // Display current keys in the text field
+                std::wstring keysText = FormatHighlightKeysForDisplay(currentHighlightKeys);
+                SetDlgItemTextW(hDlg, IDC_EDIT_KEYS, keysText.c_str());
+                
+                // Set up keyboard hook to capture key presses
+                keysDialogHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeysDialogKeyboardProc, GetModuleHandle(nullptr), 0);
+            }
+        }
+        
+        return (INT_PTR)TRUE;
+    }
+    case WM_COMMAND:
+        switch (LOWORD(wParam))
+        {
+        case IDC_BUTTON_RESET_KEYS:
+            // Clear all highlight keys
+            currentHighlightKeys.clear();
+            SetDlgItemTextW(hDlg, IDC_EDIT_KEYS, L"");
+            return (INT_PTR)TRUE;
+            
+        case IDC_BUTTON_DONE_KEYS:
+        case IDOK:
+            // Save the highlight keys and close dialog
+            if (!currentAppNameForKeys.empty()) {
+                UpdateAppProfileHighlightKeys(currentAppNameForKeys, currentHighlightKeys);
+                UpdateAppProfileHighlightKeysInRegistry(currentAppNameForKeys, currentHighlightKeys);
+            }
+            
+            // Remove keyboard hook
+            if (keysDialogHook) {
+                UnhookWindowsHookEx(keysDialogHook);
+                keysDialogHook = nullptr;
+            }
+            
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+            
+        case IDCANCEL:
+            // Remove keyboard hook
+            if (keysDialogHook) {
+                UnhookWindowsHookEx(keysDialogHook);
+                keysDialogHook = nullptr;
+            }
+            
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        break;
+        
+    case WM_CLOSE:
+        // Remove keyboard hook
+        if (keysDialogHook) {
+            UnhookWindowsHookEx(keysDialogHook);
+            keysDialogHook = nullptr;
+        }
+        
+        EndDialog(hDlg, IDCANCEL);
+        return (INT_PTR)TRUE;
+    }
+    return (INT_PTR)FALSE;
+}
+
+// Show the Keys dialog
+void ShowKeysDialog(HWND hWnd) {
+    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+    if (!hCombo) return;
+    
+    int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
+    if (selectedIndex == CB_ERR || selectedIndex == 0) {
+        MessageBoxW(hWnd, L"Please select an app profile first.", L"Keys Configuration", MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+    
+    DialogBox(hInst, MAKEINTRESOURCE(IDD_KEYSBOX), hWnd, KeysDialog);
 }

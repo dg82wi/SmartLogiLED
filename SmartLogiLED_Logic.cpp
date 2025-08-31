@@ -73,6 +73,50 @@ void SetLockKeysColor(void) {
     SetKeyColor(pressedKey, colorToSet);
 }
 
+// Set highlight color for keys from the currently active profile
+void SetHighlightKeysColor() {
+    // Find the currently active profile
+    for (const auto& profile : appColorProfiles) {
+        if (profile.isProfileCurrInUse) {
+            // Apply highlight color to all keys in the highlight list
+            for (const auto& key : profile.highlightKeys) {
+                // Check if this is a lock key and if lock keys are enabled
+                bool isLockKey = (key == LogiLed::KeyName::NUM_LOCK || 
+                                key == LogiLed::KeyName::CAPS_LOCK || 
+                                key == LogiLed::KeyName::SCROLL_LOCK);
+                
+                if (isLockKey && profile.lockKeysEnabled) {
+                    // For lock keys, check their state and apply appropriate color
+                    SHORT keyState = 0;
+                    COLORREF lockColor = defaultColor;
+                    
+                    if (key == LogiLed::KeyName::NUM_LOCK) {
+                        keyState = GetKeyState(VK_NUMLOCK) & 0x0001;
+                        lockColor = (keyState == 0x0001) ? numLockColor : defaultColor;
+                    } else if (key == LogiLed::KeyName::CAPS_LOCK) {
+                        keyState = GetKeyState(VK_CAPITAL) & 0x0001;
+                        lockColor = (keyState == 0x0001) ? capsLockColor : defaultColor;
+                    } else if (key == LogiLed::KeyName::SCROLL_LOCK) {
+                        keyState = GetKeyState(VK_SCROLL) & 0x0001;
+                        lockColor = (keyState == 0x0001) ? scrollLockColor : defaultColor;
+                    }
+                    
+                    // Lock key color takes precedence over highlight color when lock is active
+                    if (keyState == 0x0001) {
+                        SetKeyColor(key, lockColor);
+                    } else {
+                        SetKeyColor(key, profile.appHighlightColor);
+                    }
+                } else {
+                    // For non-lock keys or when lock keys are disabled, apply highlight color
+                    SetKeyColor(key, profile.appHighlightColor);
+                }
+            }
+            break;
+        }
+    }
+}
+
 // Show color picker dialog and update color
 void ShowColorPicker(HWND hWnd, COLORREF& color, LogiLed::KeyName key) {
     CHOOSECOLOR cc;
@@ -141,6 +185,9 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
             }
 
             SetKeyColor(pressedKey, colorToSet);
+            
+            // Also reapply highlight keys in case the pressed key is in the highlight list
+            SetHighlightKeysColor();
         }
     }
 
@@ -286,7 +333,7 @@ void AppMonitorThreadProc() {
                         // Check if this should be the displayed profile (most recently activated takes precedence)
                         bool shouldDisplay = true;
                         for (const auto& otherProfile : appColorProfiles) {
-                            if (otherProfile.isProfileCurrentlyInUse && otherProfile.appName != profile.appName) {
+                            if (otherProfile.isProfileCurrInUse && otherProfile.appName != profile.appName) {
                                 shouldDisplay = true; // Always take control as the most recently activated
                                 break;
                             }
@@ -295,26 +342,29 @@ void AppMonitorThreadProc() {
                         if (shouldDisplay) {
                             // Clear all other displayed flags
                             for (auto& p : appColorProfiles) {
-                                if (p.isProfileCurrentlyInUse && p.appName != profile.appName) {
-                                    p.isProfileCurrentlyInUse = false;
-                                    // Debug message for isProfileCurrentlyInUse change
+                                if (p.isProfileCurrInUse && p.appName != profile.appName) {
+                                    p.isProfileCurrInUse = false;
+                                    // Debug message for isProfileCurrInUse change
                                     std::wstringstream debugMsg2;
-                                    debugMsg2 << L"[DEBUG] Profile " << p.appName << L" - isProfilecurrentlyInUse changed to FALSE (handoff to most recent)\n";
+                                    debugMsg2 << L"[DEBUG] Profile " << p.appName << L" - isProfileCurrInUse changed to FALSE (handoff to most recent)\n";
                                     OutputDebugStringW(debugMsg2.str().c_str());
                                 }
                             }
                             // Set this profile as displayed
-                            profile.isProfileCurrentlyInUse = true;
+                            profile.isProfileCurrInUse = true;
                             
-                            // Debug message for isProfileCurrentlyInUse change
+                            // Debug message for isProfilecurrentlyInUse change
                             std::wstringstream debugMsg3;
-                            debugMsg3 << L"[DEBUG] Profile " << profile.appName << L" - isProfilecurrentlyInUse changed to TRUE (most recently activated)\n";
+                            debugMsg3 << L"[DEBUG] Profile " << profile.appName << L" - isProfileCurrInUse changed to TRUE (most recently activated)\n";
                             OutputDebugStringW(debugMsg3.str().c_str());
                             
                             SetDefaultColor(profile.appColor);
                             if (profile.lockKeysEnabled) {
                                 SetLockKeysColor(); // Update lock key colors based on profile's lock keys setting
                             }
+                            
+                            // Apply highlight keys color
+                            SetHighlightKeysColor();
                             
                             // Notify UI to update combo box
                             if (mainWindowHandle) {
@@ -348,12 +398,12 @@ void AppMonitorThreadProc() {
                         OutputDebugStringW(debugMsg.str().c_str());
                         
                         // If this was the displayed profile, find a replacement or clear display
-                        if (profile.isProfileCurrentlyInUse) {
-                            profile.isProfileCurrentlyInUse = false;
+                        if (profile.isProfileCurrInUse) {
+                            profile.isProfileCurrInUse = false;
                             
-                            // Debug message for isProfilecurrentlyInUse change
+                            // Debug message for isProfileCurrInUse change
                             std::wstringstream debugMsg2;
-                            debugMsg2 << L"[DEBUG] Profile " << profile.appName << L" - isProfilecurrentlyInUse changed to FALSE (app stopped)\n";
+                            debugMsg2 << L"[DEBUG] Profile " << profile.appName << L" - isProfileCurrInUse changed to FALSE (app stopped)\n";
                             OutputDebugStringW(debugMsg2.str().c_str());
                             
                             // Find the most recently activated profile that is still running
@@ -390,16 +440,24 @@ void AppMonitorThreadProc() {
                             
                             if (activeProfile) {
                                 // Hand off lighting to the selected active profile
-                                activeProfile->isProfileCurrentlyInUse = true;
+                                activeProfile->isProfileCurrInUse = true;
                                 
-                                // Debug message for isProfilecurrentlyInUse change
+                                // Debug message for isProfileCurrInUse change
                                 std::wstringstream debugMsg3;
-                                debugMsg3 << L"[DEBUG] Profile " << activeProfile->appName << L" - isProfilecurrentlyInUse changed to TRUE (handoff from " << profile.appName << L")\n";
+                                debugMsg3 << L"[DEBUG] Profile " << activeProfile->appName << L" - isProfileCurrInUse changed to TRUE (handoff from " << profile.appName << L")\n";
                                 OutputDebugStringW(debugMsg3.str().c_str());
                                 
                                 SetDefaultColor(activeProfile->appColor);
                                 if (activeProfile->lockKeysEnabled) {
                                     SetLockKeysColor();
+                                }
+                                
+                                // Apply highlight keys color
+                                SetHighlightKeysColor();
+                                
+                                // Notify UI to update combo box
+                                if (mainWindowHandle) {
+                                    PostMessage(mainWindowHandle, WM_UPDATE_PROFILE_COMBO, 0, 0);
                                 }
                             } else {
                                 // If no monitored apps are running, restore default color and enable lock keys
@@ -459,7 +517,7 @@ void AddAppColorProfile(const std::wstring& appName, COLORREF color, bool lockKe
             profile.appColor = color;
             profile.lockKeysEnabled = lockKeysEnabled;
             profile.isAppRunning = IsAppRunning(appName);
-            // Don't change isProfileCurrentlyInUse flag when updating existing profile
+            // Don't change isProfileCurrInUse flag when updating existing profile
             return;
         }
     }
@@ -470,7 +528,7 @@ void AddAppColorProfile(const std::wstring& appName, COLORREF color, bool lockKe
     newProfile.appColor = color;
     newProfile.lockKeysEnabled = lockKeysEnabled;
     newProfile.isAppRunning = IsAppRunning(appName);
-    newProfile.isProfileCurrentlyInUse = false; // Initialize as not displayed
+    newProfile.isProfileCurrInUse = false; // Initialize as not displayed
     appColorProfiles.push_back(newProfile);
 }
 
@@ -497,7 +555,7 @@ bool IsLockKeysFeatureEnabled() {
     
     // Check if any profile is currently displayed (controlling colors)
     for (const auto& profile : appColorProfiles) {
-        if (profile.isProfileCurrentlyInUse) {
+        if (profile.isProfileCurrInUse) {
             return profile.lockKeysEnabled; // Return the setting from the displayed profile
         }
     }
@@ -514,10 +572,10 @@ void CheckRunningAppsAndUpdateColors() {
     
     // First, clear all displayed flags
     for (auto& profile : appColorProfiles) {
-        if (profile.isProfileCurrentlyInUse) {
-            profile.isProfileCurrentlyInUse = false;
+        if (profile.isProfileCurrInUse) {
+            profile.isProfileCurrInUse = false;
             std::wstringstream debugMsg;
-            debugMsg << L"[DEBUG] Profile " << profile.appName << L" - isProfilecurrentlyInUse changed to FALSE (scan reset)\n";
+            debugMsg << L"[DEBUG] Profile " << profile.appName << L" - isProfileCurrInUse changed to FALSE (scan reset)\n";
             OutputDebugStringW(debugMsg.str().c_str());
         }
     }
@@ -573,11 +631,11 @@ void CheckRunningAppsAndUpdateColors() {
     
     // Activate the selected profile
     if (selectedProfile) {
-        selectedProfile->isProfileCurrentlyInUse = true;
+        selectedProfile->isProfileCurrInUse = true;
         
-        // Debug message for isProfileCurrentlyInUse change
+        // Debug message for isProfileCurrInUse change
         std::wstringstream debugMsg;
-        debugMsg << L"[DEBUG] Profile " << selectedProfile->appName << L" - isProfilecurrentlyInUse changed to TRUE (scan - priority: " 
+        debugMsg << L"[DEBUG] Profile " << selectedProfile->appName << L" - isProfileCurrInUse changed to TRUE (scan - priority: " 
                  << (selectedProfile->appName == lastActivatedProfile ? L"most recent" : L"first available") << L")\n";
         OutputDebugStringW(debugMsg.str().c_str());
         
@@ -588,6 +646,9 @@ void CheckRunningAppsAndUpdateColors() {
         if (selectedProfile->lockKeysEnabled) {
             SetLockKeysColor();
         }
+        
+        // Apply highlight keys color
+        SetHighlightKeysColor();
     }
     
     if (!foundActiveApp) {
@@ -609,7 +670,7 @@ AppColorProfile* GetDisplayedProfile() {
     std::lock_guard<std::mutex> lock(appProfilesMutex);
     
     for (auto& profile : appColorProfiles) {
-        if (profile.isProfileCurrentlyInUse) {
+        if (profile.isProfileCurrInUse) {
             return &profile;
         }
     }
@@ -642,11 +703,13 @@ void UpdateAppProfileColor(const std::wstring& appName, COLORREF newAppColor) {
             profile.appColor = newAppColor;
             
             // If this profile is currently displayed, update the colors immediately
-            if (profile.isProfileCurrentlyInUse) {
+            if (profile.isProfileCurrInUse) {
                 SetDefaultColor(newAppColor);
                 if (profile.lockKeysEnabled) {
                     SetLockKeysColor();
                 }
+                // Apply highlight keys color
+                SetHighlightKeysColor();
             }
             break;
         }
@@ -665,8 +728,11 @@ void UpdateAppProfileHighlightColor(const std::wstring& appName, COLORREF newHig
         
         if (lowerExisting == lowerTarget) {
             profile.appHighlightColor = newHighlightColor;
-            // Highlight color updates don't immediately affect displayed colors
-            // They're used for UI representation and specific key highlighting
+            
+            // If this profile is currently displayed, update highlight keys immediately
+            if (profile.isProfileCurrInUse) {
+                SetHighlightKeysColor();
+            }
             break;
         }
     }
@@ -686,15 +752,18 @@ void UpdateAppProfileLockKeysEnabled(const std::wstring& appName, bool lockKeysE
             profile.lockKeysEnabled = lockKeysEnabled;
             
             // If this profile is currently displayed, update lock keys behavior immediately
-            if (profile.isProfileCurrentlyInUse) {
+            if (profile.isProfileCurrInUse) {
                 if (lockKeysEnabled) {
                     SetLockKeysColor(); // Enable lock key color visualization
                 } else {
-                    // Disable lock keys - set them to default color
-                    SetKeyColor(LogiLed::KeyName::NUM_LOCK, defaultColor);
-                    SetKeyColor(LogiLed::KeyName::CAPS_LOCK, defaultColor);
-                    SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, defaultColor);
+                    // Disable lock keys - set them to the app's color (not defaultColor)
+                    SetKeyColor(LogiLed::KeyName::NUM_LOCK, profile.appColor);
+                    SetKeyColor(LogiLed::KeyName::CAPS_LOCK, profile.appColor);
+                    SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, profile.appColor);
                 }
+                
+                // Reapply highlight keys (this will properly handle lock keys based on new setting)
+                SetHighlightKeysColor();
             }
             break;
         }
@@ -717,4 +786,281 @@ AppColorProfile* GetAppProfileByName(const std::wstring& appName) {
     }
     
     return nullptr;
+}
+
+// Update app profile highlight keys
+void UpdateAppProfileHighlightKeys(const std::wstring& appName, const std::vector<LogiLed::KeyName>& highlightKeys) {
+    std::lock_guard<std::mutex> lock(appProfilesMutex);
+    
+    for (auto& profile : appColorProfiles) {
+        std::wstring lowerExisting = profile.appName;
+        std::wstring lowerTarget = appName;
+        std::transform(lowerExisting.begin(), lowerExisting.end(), lowerExisting.begin(), ::towlower);
+        std::transform(lowerTarget.begin(), lowerTarget.end(), lowerTarget.begin(), ::towlower);
+        
+        if (lowerExisting == lowerTarget) {
+            profile.highlightKeys = highlightKeys;
+            
+            // If this profile is currently displayed, update highlight keys immediately
+            if (profile.isProfileCurrInUse) {
+                // First set default color to all keys to clear old highlights
+                SetDefaultColor(profile.appColor);
+                // Then reapply lock keys if enabled
+                if (profile.lockKeysEnabled) {
+                    SetLockKeysColor();
+                }
+                // Finally apply new highlight keys
+                SetHighlightKeysColor();
+            }
+            break;
+        }
+    }
+}
+
+// Convert Virtual Key code to LogiLed::KeyName
+LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode) {
+    switch (vkCode) {
+        case VK_ESCAPE: return LogiLed::KeyName::ESC;
+        case VK_F1: return LogiLed::KeyName::F1;
+        case VK_F2: return LogiLed::KeyName::F2;
+        case VK_F3: return LogiLed::KeyName::F3;
+        case VK_F4: return LogiLed::KeyName::F4;
+        case VK_F5: return LogiLed::KeyName::F5;
+        case VK_F6: return LogiLed::KeyName::F6;
+        case VK_F7: return LogiLed::KeyName::F7;
+        case VK_F8: return LogiLed::KeyName::F8;
+        case VK_F9: return LogiLed::KeyName::F9;
+        case VK_F10: return LogiLed::KeyName::F10;
+        case VK_F11: return LogiLed::KeyName::F11;
+        case VK_F12: return LogiLed::KeyName::F12;
+        case VK_SNAPSHOT: return LogiLed::KeyName::PRINT_SCREEN;
+        case VK_SCROLL: return LogiLed::KeyName::SCROLL_LOCK;
+        case VK_PAUSE: return LogiLed::KeyName::PAUSE_BREAK;
+        case VK_OEM_3: return LogiLed::KeyName::TILDE; // ~ key
+        case '1': return LogiLed::KeyName::ONE;
+        case '2': return LogiLed::KeyName::TWO;
+        case '3': return LogiLed::KeyName::THREE;
+        case '4': return LogiLed::KeyName::FOUR;
+        case '5': return LogiLed::KeyName::FIVE;
+        case '6': return LogiLed::KeyName::SIX;
+        case '7': return LogiLed::KeyName::SEVEN;
+        case '8': return LogiLed::KeyName::EIGHT;
+        case '9': return LogiLed::KeyName::NINE;
+        case '0': return LogiLed::KeyName::ZERO;
+        case VK_OEM_MINUS: return LogiLed::KeyName::MINUS;
+        case VK_OEM_PLUS: return LogiLed::KeyName::EQUALS;
+        case VK_BACK: return LogiLed::KeyName::BACKSPACE;
+        case VK_INSERT: return LogiLed::KeyName::INSERT;
+        case VK_HOME: return LogiLed::KeyName::HOME;
+        case VK_PRIOR: return LogiLed::KeyName::PAGE_UP;
+        case VK_NUMLOCK: return LogiLed::KeyName::NUM_LOCK;
+        case VK_DIVIDE: return LogiLed::KeyName::NUM_SLASH;
+        case VK_MULTIPLY: return LogiLed::KeyName::NUM_ASTERISK;
+        case VK_SUBTRACT: return LogiLed::KeyName::NUM_MINUS;
+        case VK_TAB: return LogiLed::KeyName::TAB;
+        case 'Q': return LogiLed::KeyName::Q;
+        case 'W': return LogiLed::KeyName::W;
+        case 'E': return LogiLed::KeyName::E;
+        case 'R': return LogiLed::KeyName::R;
+        case 'T': return LogiLed::KeyName::T;
+        case 'Y': return LogiLed::KeyName::Y;
+        case 'U': return LogiLed::KeyName::U;
+        case 'I': return LogiLed::KeyName::I;
+        case 'O': return LogiLed::KeyName::O;
+        case 'P': return LogiLed::KeyName::P;
+        case VK_OEM_4: return LogiLed::KeyName::OPEN_BRACKET; // [
+        case VK_OEM_6: return LogiLed::KeyName::CLOSE_BRACKET; // ]
+        case VK_OEM_5: return LogiLed::KeyName::BACKSLASH; // backslash
+        case VK_DELETE: return LogiLed::KeyName::KEYBOARD_DELETE;
+        case VK_END: return LogiLed::KeyName::END;
+        case VK_NEXT: return LogiLed::KeyName::PAGE_DOWN;
+        case VK_NUMPAD7: return LogiLed::KeyName::NUM_SEVEN;
+        case VK_NUMPAD8: return LogiLed::KeyName::NUM_EIGHT;
+        case VK_NUMPAD9: return LogiLed::KeyName::NUM_NINE;
+        case VK_ADD: return LogiLed::KeyName::NUM_PLUS;
+        case VK_CAPITAL: return LogiLed::KeyName::CAPS_LOCK;
+        case 'A': return LogiLed::KeyName::A;
+        case 'S': return LogiLed::KeyName::S;
+        case 'D': return LogiLed::KeyName::D;
+        case 'F': return LogiLed::KeyName::F;
+        case 'G': return LogiLed::KeyName::G;
+        case 'H': return LogiLed::KeyName::H;
+        case 'J': return LogiLed::KeyName::J;
+        case 'K': return LogiLed::KeyName::K;
+        case 'L': return LogiLed::KeyName::L;
+        case VK_OEM_1: return LogiLed::KeyName::SEMICOLON; // ;
+        case VK_OEM_7: return LogiLed::KeyName::APOSTROPHE; // '
+        case VK_RETURN: return LogiLed::KeyName::ENTER;
+        case VK_NUMPAD4: return LogiLed::KeyName::NUM_FOUR;
+        case VK_NUMPAD5: return LogiLed::KeyName::NUM_FIVE;
+        case VK_NUMPAD6: return LogiLed::KeyName::NUM_SIX;
+        case VK_LSHIFT: return LogiLed::KeyName::LEFT_SHIFT;
+        case 'Z': return LogiLed::KeyName::Z;
+        case 'X': return LogiLed::KeyName::X;
+        case 'C': return LogiLed::KeyName::C;
+        case 'V': return LogiLed::KeyName::V;
+        case 'B': return LogiLed::KeyName::B;
+        case 'N': return LogiLed::KeyName::N;
+        case 'M': return LogiLed::KeyName::M;
+        case VK_OEM_COMMA: return LogiLed::KeyName::COMMA;
+        case VK_OEM_PERIOD: return LogiLed::KeyName::PERIOD;
+        case VK_OEM_2: return LogiLed::KeyName::FORWARD_SLASH; // /
+        case VK_RSHIFT: return LogiLed::KeyName::RIGHT_SHIFT;
+        case VK_UP: return LogiLed::KeyName::ARROW_UP;
+        case VK_NUMPAD1: return LogiLed::KeyName::NUM_ONE;
+        case VK_NUMPAD2: return LogiLed::KeyName::NUM_TWO;
+        case VK_NUMPAD3: return LogiLed::KeyName::NUM_THREE;
+        case VK_LCONTROL: return LogiLed::KeyName::LEFT_CONTROL;
+        case VK_LWIN: return LogiLed::KeyName::LEFT_WINDOWS;
+        case VK_LMENU: return LogiLed::KeyName::LEFT_ALT;
+        case VK_SPACE: return LogiLed::KeyName::SPACE;
+        case VK_RMENU: return LogiLed::KeyName::RIGHT_ALT;
+        case VK_RWIN: return LogiLed::KeyName::RIGHT_WINDOWS;
+        case VK_APPS: return LogiLed::KeyName::APPLICATION_SELECT;
+        case VK_RCONTROL: return LogiLed::KeyName::RIGHT_CONTROL;
+        case VK_LEFT: return LogiLed::KeyName::ARROW_LEFT;
+        case VK_DOWN: return LogiLed::KeyName::ARROW_DOWN;
+        case VK_RIGHT: return LogiLed::KeyName::ARROW_RIGHT;
+        case VK_NUMPAD0: return LogiLed::KeyName::NUM_ZERO;
+        case VK_DECIMAL: return LogiLed::KeyName::NUM_PERIOD;
+        default: return LogiLed::KeyName::ESC; // Return ESC for unknown keys
+    }
+}
+
+// Convert LogiLed::KeyName to display name
+std::wstring LogiLedKeyToDisplayName(LogiLed::KeyName key) {
+    switch (key) {
+        case LogiLed::KeyName::ESC: return L"ESC";
+        case LogiLed::KeyName::F1: return L"F1";
+        case LogiLed::KeyName::F2: return L"F2";
+        case LogiLed::KeyName::F3: return L"F3";
+        case LogiLed::KeyName::F4: return L"F4";
+        case LogiLed::KeyName::F5: return L"F5";
+        case LogiLed::KeyName::F6: return L"F6";
+        case LogiLed::KeyName::F7: return L"F7";
+        case LogiLed::KeyName::F8: return L"F8";
+        case LogiLed::KeyName::F9: return L"F9";
+        case LogiLed::KeyName::F10: return L"F10";
+        case LogiLed::KeyName::F11: return L"F11";
+        case LogiLed::KeyName::F12: return L"F12";
+        case LogiLed::KeyName::PRINT_SCREEN: return L"PRINT";
+        case LogiLed::KeyName::SCROLL_LOCK: return L"SCROLL";
+        case LogiLed::KeyName::PAUSE_BREAK: return L"PAUSE";
+        case LogiLed::KeyName::TILDE: return L"~";
+        case LogiLed::KeyName::ONE: return L"1";
+        case LogiLed::KeyName::TWO: return L"2";
+        case LogiLed::KeyName::THREE: return L"3";
+        case LogiLed::KeyName::FOUR: return L"4";
+        case LogiLed::KeyName::FIVE: return L"5";
+        case LogiLed::KeyName::SIX: return L"6";
+        case LogiLed::KeyName::SEVEN: return L"7";
+        case LogiLed::KeyName::EIGHT: return L"8";
+        case LogiLed::KeyName::NINE: return L"9";
+        case LogiLed::KeyName::ZERO: return L"0";
+        case LogiLed::KeyName::MINUS: return L"-";
+        case LogiLed::KeyName::EQUALS: return L"=";
+        case LogiLed::KeyName::BACKSPACE: return L"BACKSPACE";
+        case LogiLed::KeyName::INSERT: return L"INSERT";
+        case LogiLed::KeyName::HOME: return L"HOME";
+        case LogiLed::KeyName::PAGE_UP: return L"PGUP";
+        case LogiLed::KeyName::NUM_LOCK: return L"NUMLOCK";
+        case LogiLed::KeyName::NUM_SLASH: return L"NUM/";
+        case LogiLed::KeyName::NUM_ASTERISK: return L"NUM*";
+        case LogiLed::KeyName::NUM_MINUS: return L"NUM-";
+        case LogiLed::KeyName::TAB: return L"TAB";
+        case LogiLed::KeyName::Q: return L"Q";
+        case LogiLed::KeyName::W: return L"W";
+        case LogiLed::KeyName::E: return L"E";
+        case LogiLed::KeyName::R: return L"R";
+        case LogiLed::KeyName::T: return L"T";
+        case LogiLed::KeyName::Y: return L"Y";
+        case LogiLed::KeyName::U: return L"U";
+        case LogiLed::KeyName::I: return L"I";
+        case LogiLed::KeyName::O: return L"O";
+        case LogiLed::KeyName::P: return L"P";
+        case LogiLed::KeyName::OPEN_BRACKET: return L"[";
+        case LogiLed::KeyName::CLOSE_BRACKET: return L"]";
+        case LogiLed::KeyName::BACKSLASH: return L"\\";
+        case LogiLed::KeyName::KEYBOARD_DELETE: return L"DELETE";
+        case LogiLed::KeyName::END: return L"END";
+        case LogiLed::KeyName::PAGE_DOWN: return L"PGDN";
+        case LogiLed::KeyName::NUM_SEVEN: return L"NUM7";
+        case LogiLed::KeyName::NUM_EIGHT: return L"NUM8";
+        case LogiLed::KeyName::NUM_NINE: return L"NUM9";
+        case LogiLed::KeyName::NUM_PLUS: return L"NUM+";
+        case LogiLed::KeyName::CAPS_LOCK: return L"CAPS";
+        case LogiLed::KeyName::A: return L"A";
+        case LogiLed::KeyName::S: return L"S";
+        case LogiLed::KeyName::D: return L"D";
+        case LogiLed::KeyName::F: return L"F";
+        case LogiLed::KeyName::G: return L"G";
+        case LogiLed::KeyName::H: return L"H";
+        case LogiLed::KeyName::J: return L"J";
+        case LogiLed::KeyName::K: return L"K";
+        case LogiLed::KeyName::L: return L"L";
+        case LogiLed::KeyName::SEMICOLON: return L";";
+        case LogiLed::KeyName::APOSTROPHE: return L"'";
+        case LogiLed::KeyName::ENTER: return L"ENTER";
+        case LogiLed::KeyName::NUM_FOUR: return L"NUM4";
+        case LogiLed::KeyName::NUM_FIVE: return L"NUM5";
+        case LogiLed::KeyName::NUM_SIX: return L"NUM6";
+        case LogiLed::KeyName::LEFT_SHIFT: return L"LSHIFT";
+        case LogiLed::KeyName::Z: return L"Z";
+        case LogiLed::KeyName::X: return L"X";
+        case LogiLed::KeyName::C: return L"C";
+        case LogiLed::KeyName::V: return L"V";
+        case LogiLed::KeyName::B: return L"B";
+        case LogiLed::KeyName::N: return L"N";
+        case LogiLed::KeyName::M: return L"M";
+        case LogiLed::KeyName::COMMA: return L",";
+        case LogiLed::KeyName::PERIOD: return L".";
+        case LogiLed::KeyName::FORWARD_SLASH: return L"/";
+        case LogiLed::KeyName::RIGHT_SHIFT: return L"RSHIFT";
+        case LogiLed::KeyName::ARROW_UP: return L"UP";
+        case LogiLed::KeyName::NUM_ONE: return L"NUM1";
+        case LogiLed::KeyName::NUM_TWO: return L"NUM2";
+        case LogiLed::KeyName::NUM_THREE: return L"NUM3";
+        case LogiLed::KeyName::NUM_ENTER: return L"NUMENTER";
+        case LogiLed::KeyName::LEFT_CONTROL: return L"LCTRL";
+        case LogiLed::KeyName::LEFT_WINDOWS: return L"LWIN";
+        case LogiLed::KeyName::LEFT_ALT: return L"LALT";
+        case LogiLed::KeyName::SPACE: return L"SPACE";
+        case LogiLed::KeyName::RIGHT_ALT: return L"RALT";
+        case LogiLed::KeyName::RIGHT_WINDOWS: return L"RWIN";
+        case LogiLed::KeyName::APPLICATION_SELECT: return L"MENU";
+        case LogiLed::KeyName::RIGHT_CONTROL: return L"RCTRL";
+        case LogiLed::KeyName::ARROW_LEFT: return L"LEFT";
+        case LogiLed::KeyName::ARROW_DOWN: return L"DOWN";
+        case LogiLed::KeyName::ARROW_RIGHT: return L"RIGHT";
+        case LogiLed::KeyName::NUM_ZERO: return L"NUM0";
+        case LogiLed::KeyName::NUM_PERIOD: return L"NUM.";
+        case LogiLed::KeyName::G_1: return L"G1";
+        case LogiLed::KeyName::G_2: return L"G2";
+        case LogiLed::KeyName::G_3: return L"G3";
+        case LogiLed::KeyName::G_4: return L"G4";
+        case LogiLed::KeyName::G_5: return L"G5";
+        case LogiLed::KeyName::G_6: return L"G6";
+        case LogiLed::KeyName::G_7: return L"G7";
+        case LogiLed::KeyName::G_8: return L"G8";
+        case LogiLed::KeyName::G_9: return L"G9";
+        case LogiLed::KeyName::G_LOGO: return L"G_LOGO";
+        case LogiLed::KeyName::G_BADGE: return L"G_BADGE";
+        default: return L"UNKNOWN";
+    }
+}
+
+// Format highlight keys for display in text field
+std::wstring FormatHighlightKeysForDisplay(const std::vector<LogiLed::KeyName>& keys) {
+    if (keys.empty()) {
+        return L"";
+    }
+    
+    std::wstring result;
+    for (size_t i = 0; i < keys.size(); ++i) {
+        if (i > 0) {
+            result += L" - ";
+        }
+        result += LogiLedKeyToDisplayName(keys[i]);
+    }
+    return result;
 }

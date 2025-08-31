@@ -210,7 +210,7 @@ void LoadAppProfilesFromRegistry() {
                 }
                 // Initialize runtime flags properly
                 p.isAppRunning = IsAppRunning(p.appName);
-                p.isProfileCurrentlyInUse = false; // Will be set correctly by CheckRunningAppsAndUpdateColors()
+                p.isProfileCurrInUse = false; // Will be set correctly by CheckRunningAppsAndUpdateColors()
                 appColorProfiles.push_back(std::move(p));
                 RegCloseKey(hAppKey);
             }
@@ -263,6 +263,28 @@ void UpdateAppProfileLockKeysEnabledInRegistry(const std::wstring& appName, bool
             DWORD d = lockKeysEnabled ? 1u : 0u;
             RegSetValueExW(hAppKey, REGISTRY_VALUE_LOCK_KEYS_ENABLED, 0, REG_DWORD,
                            reinterpret_cast<const BYTE*>(&d), sizeof(d));
+            RegCloseKey(hAppKey);
+        }
+        RegCloseKey(hProfilesKey);
+    }
+}
+
+// Update specific app profile highlight keys in registry
+void UpdateAppProfileHighlightKeysInRegistry(const std::wstring& appName, const std::vector<LogiLed::KeyName>& highlightKeys) {
+    HKEY hProfilesKey = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+        HKEY hAppKey = nullptr;
+        if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
+            if (!highlightKeys.empty()) {
+                std::vector<DWORD> data;
+                data.reserve(highlightKeys.size());
+                for (auto k : highlightKeys) data.push_back(static_cast<DWORD>(k));
+                RegSetValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, 0, REG_BINARY,
+                               reinterpret_cast<const BYTE*>(data.data()),
+                               static_cast<DWORD>(data.size() * sizeof(DWORD)));
+            } else {
+                RegSetValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, 0, REG_BINARY, nullptr, 0);
+            }
             RegCloseKey(hAppKey);
         }
         RegCloseKey(hProfilesKey);

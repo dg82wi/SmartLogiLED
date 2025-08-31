@@ -18,7 +18,7 @@ struct AppColorProfile {
     COLORREF appColor = RGB(0, 255, 255); // Color to set when app starts
     COLORREF appHighlightColor = RGB(255, 255, 255); // Highlight color for UI representation
     bool isAppRunning = false;              // Whether this profile is currently active
-    bool isProfileCurrentlyInUse = false;              // Whether this profile currently defines the key colors
+    bool isProfileCurrInUse = false;              // Whether this profile currently defines the key colors
     bool lockKeysEnabled = true;        // Whether lock keys feature is enabled for this profile
     std::vector<LogiLed::KeyName> highlightKeys; // list of keys which use the appHighlightColor
 };
@@ -54,6 +54,13 @@ void UpdateAppProfileColor(const std::wstring& appName, COLORREF newAppColor);
 void UpdateAppProfileHighlightColor(const std::wstring& appName, COLORREF newHighlightColor);
 void UpdateAppProfileLockKeysEnabled(const std::wstring& appName, bool lockKeysEnabled);
 AppColorProfile* GetAppProfileByName(const std::wstring& appName);
+
+// Highlight keys management functions
+void UpdateAppProfileHighlightKeys(const std::wstring& appName, const std::vector<LogiLed::KeyName>& highlightKeys);
+std::wstring FormatHighlightKeysForDisplay(const std::vector<LogiLed::KeyName>& keys);
+LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode);
+std::wstring LogiLedKeyToDisplayName(LogiLed::KeyName key);
+void SetHighlightKeysColor(); // Apply highlight color to keys from active profile
 
 // Keyboard hook procedure
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
