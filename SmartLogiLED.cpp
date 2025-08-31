@@ -40,6 +40,7 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    Help(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    KeysDialog(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK    AddProfileDialog(HWND, UINT, WPARAM, LPARAM);
 void                CreateTrayIcon(HWND hWnd);
 void                RemoveTrayIcon();
 void                ShowTrayContextMenu(HWND hWnd);
@@ -650,6 +651,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Load app profiles from registry (includes highlight color and keys)
    LoadAppProfilesFromRegistry();
 
+   /*
    // If no profiles exist, add some sample app color profiles with lock keys feature control
    if (GetAppProfilesCount() == 0) {
        AddAppColorProfile(L"notepad.exe", RGB(255, 255, 0), true);      // Yellow for Notepad, lock keys enabled
@@ -659,7 +661,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
        AddAppColorProfile(L"devenv.exe", RGB(128, 0, 128), true);       // Purple for Visual Studio, lock keys enabled
        SaveAppProfilesToRegistry();
    }
-   
+   */
+
    // Populate the combo box with app profiles
    PopulateAppProfileCombo(hCombo);
    
@@ -730,49 +733,7 @@ void RefreshAppProfileCombo(HWND hWnd) {
 
 // Show dialog to add a new app profile
 void ShowAddProfileDialog(HWND hWnd) {
-    // Create a simple input dialog
-    WCHAR appName[256] = L"";;
-    
-    // Use a simulated input - in a real implementation you would create a proper dialog resource
-    // For now, let's use a hardcoded example that users can see working
-    
-    if (MessageBoxW(hWnd, L"This will add a sample profile 'notepad++.exe' with blue color.\nClick OK to proceed.", L"Add App Profile", MB_OKCANCEL) == IDOK) {
-        // Add a sample profile
-        std::wstring sampleAppName = L"notepad++.exe";
-        COLORREF sampleColor = RGB(0, 100, 255); // Blue
-        bool lockKeysEnabled = true;
-        
-        // Check if profile already exists
-        std::vector<AppColorProfile> profiles = GetAppColorProfilesCopy();
-        bool exists = false;
-        for (const auto& profile : profiles) {
-            if (profile.appName == sampleAppName) {
-                exists = true;
-                break;
-            }
-        }
-        
-        if (exists) {
-            MessageBoxW(hWnd, L"Profile already exists for this application!", L"Add Profile", MB_OK);
-        } else {
-            // Add the profile
-            AddAppColorProfile(sampleAppName, sampleColor, lockKeysEnabled);
-            
-            // Get the added profile and save it to registry
-            std::vector<AppColorProfile> profiles = GetAppColorProfilesCopy();
-            for (const auto& profile : profiles) {
-                if (profile.appName == sampleAppName) {
-                    AddAppProfileToRegistry(profile);
-                    break;
-                }
-            }
-            
-            // Refresh the combo box
-            RefreshAppProfileCombo(hWnd);
-            
-            MessageBoxW(hWnd, (L"Added profile for: " + sampleAppName).c_str(), L"Profile Added", MB_OK);
-        }
-    }
+    DialogBox(hInst, MAKEINTRESOURCE(IDD_ADDPROFILEBOX), hWnd, AddProfileDialog);
 }
 
 // Remove the selected app profile
@@ -1181,4 +1142,131 @@ void ShowKeysDialog(HWND hWnd) {
     }
     
     DialogBox(hInst, MAKEINTRESOURCE(IDD_KEYSBOX), hWnd, KeysDialog);
+}
+
+// Callback function for the Add Profile dialog box
+INT_PTR CALLBACK AddProfileDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_INITDIALOG:
+        {
+            // Get the combo box and populate it with running processes
+            HWND hCombo = GetDlgItem(hDlg, IDC_COMBO_APP_SELECTOR);
+            if (hCombo) {
+                // Clear the combo box first
+                SendMessage(hCombo, CB_RESETCONTENT, 0, 0);
+                
+                // Get visible running processes
+                std::vector<std::wstring> processes = GetVisibleRunningProcesses();
+                
+                // Get existing profiles to filter out apps that already have profiles
+                std::vector<AppColorProfile> existingProfiles = GetAppColorProfilesCopy();
+                
+                // Add processes to combo box, but filter out those that already have profiles
+                for (const auto& process : processes) {
+                    bool hasProfile = false;
+                    
+                    // Check if this process already has a profile (case-insensitive)
+                    for (const auto& profile : existingProfiles) {
+                        std::wstring lowerProcess = process;
+                        std::wstring lowerProfileApp = profile.appName;
+                        std::transform(lowerProcess.begin(), lowerProcess.end(), lowerProcess.begin(), ::towlower);
+                        std::transform(lowerProfileApp.begin(), lowerProfileApp.end(), lowerProfileApp.begin(), ::towlower);
+                        
+                        if (lowerProcess == lowerProfileApp) {
+                            hasProfile = true;
+                            break;
+                        }
+                    }
+                    
+                    // Only add to combo box if it doesn't already have a profile
+                    if (!hasProfile) {
+                        SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)process.c_str());
+                    }
+                }
+                
+                // Set focus to the combo box
+                SetFocus(hCombo);
+            }
+            return (INT_PTR)TRUE;
+        }
+    case WM_COMMAND:
+        switch (LOWORD(wParam))
+        {
+        case IDC_BUTTON_DONE_ADD_PROFILE:
+        case IDOK:
+            {
+                // Get the text from the combo box
+                HWND hCombo = GetDlgItem(hDlg, IDC_COMBO_APP_SELECTOR);
+                if (hCombo) {
+                    WCHAR appName[256];
+                    GetWindowTextW(hCombo, appName, sizeof(appName) / sizeof(WCHAR));
+                    
+                    // Check if something was entered
+                    if (wcslen(appName) == 0) {
+                        MessageBoxW(hDlg, L"Please enter an application name.", L"Add Profile", MB_OK | MB_ICONWARNING);
+                        return (INT_PTR)TRUE;
+                    }
+                    
+                    // Check if profile already exists (double-check since user can type manually)
+                    std::vector<AppColorProfile> profiles = GetAppColorProfilesCopy();
+                    bool exists = false;
+                    for (const auto& profile : profiles) {
+                        std::wstring lowerExisting = profile.appName;
+                        std::wstring lowerNew = appName;
+                        std::transform(lowerExisting.begin(), lowerExisting.end(), lowerExisting.begin(), ::towlower);
+                        std::transform(lowerNew.begin(), lowerNew.end(), lowerNew.begin(), ::towlower);
+                        
+                        if (lowerExisting == lowerNew) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    
+                    if (exists) {
+                        MessageBoxW(hDlg, L"Profile already exists for this application!", L"Add Profile", MB_OK | MB_ICONWARNING);
+                        return (INT_PTR)TRUE;
+                    }
+                    
+                    // Create the new profile with specified defaults
+                    std::wstring newAppName = appName;
+                    COLORREF appColor = RGB(0, 255, 255);      // Cyan
+                    COLORREF highlightColor = RGB(255, 0, 0);  // Red
+                    bool lockKeysEnabled = false;              // Lock keys feature off
+                    
+                    // Add the profile
+                    AddAppColorProfile(newAppName, appColor, lockKeysEnabled);
+                    
+                    // Get the added profile, set highlight color and save to registry
+                    AppColorProfile* newProfile = GetAppProfileByName(newAppName);
+                    if (newProfile) {
+                        newProfile->appHighlightColor = highlightColor;
+                        // highlightKeys is already empty by default
+                        AddAppProfileToRegistry(*newProfile);
+                    }
+                    
+                    // Close the dialog and refresh the main window
+                    EndDialog(hDlg, IDOK);
+                    
+                    // Refresh the combo box in the main window
+                    HWND hParent = GetParent(hDlg);
+                    if (hParent) {
+                        RefreshAppProfileCombo(hParent);
+                    }
+                }
+                return (INT_PTR)TRUE;
+            }
+            
+        case IDCANCEL:
+            EndDialog(hDlg, IDCANCEL);
+            return (INT_PTR)TRUE;
+        }
+        break;
+        
+    case WM_CLOSE:
+        EndDialog(hDlg, IDCANCEL);
+        return (INT_PTR)TRUE;
+    }
+    return (INT_PTR)FALSE;
 }

@@ -9,6 +9,7 @@
 #define IDD_ABOUTBOX			103
 #define IDD_HELPBOX				104
 #define IDD_KEYSBOX				105
+#define IDD_ADDPROFILEBOX		106
 #define IDM_ABOUT				105
 #define IDM_HELP				106
 #define IDM_EXIT				107
@@ -54,6 +55,11 @@
 #define IDC_BUTTON_RESET_KEYS 401
 #define IDC_BUTTON_DONE_KEYS 402
 #define IDC_LABEL_KEYS_INFO 403
+
+// Add Profile Dialog controls
+#define IDC_COMBO_APP_SELECTOR 410
+#define IDC_BUTTON_DONE_ADD_PROFILE 411
+#define IDC_LABEL_ADD_PROFILE_INFO 412
 
 // Nächste Standardwerte für neue Objekte
 //

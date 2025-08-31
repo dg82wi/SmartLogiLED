@@ -38,6 +38,7 @@ void RemoveAppColorProfile(const std::wstring& appName);
 void CheckRunningAppsAndUpdateColors();
 bool IsLockKeysFeatureEnabled(); // Check if lock keys feature should be enabled based on current active profile
 void SetMainWindowHandle(HWND hWnd); // Set main window handle for UI updates
+std::vector<std::wstring> GetVisibleRunningProcesses(); // Get list of currently running visible processes
 
 // App profile access functions
 std::vector<AppColorProfile> GetAppColorProfilesCopy(); // Thread-safe copy
