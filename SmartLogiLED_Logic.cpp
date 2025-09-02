@@ -53,23 +53,34 @@ void SetLockKeysColor(void) {
     SHORT keyState;
     LogiLed::KeyName pressedKey;
     COLORREF colorToSet;
+    
+    // Determine the color to use for "off" state - app color if profile is active, otherwise default color
+    COLORREF offStateColor = defaultColor;
+    {
+        for (const auto& profile : appColorProfiles) {
+            if (profile.isProfileCurrInUse) {
+                offStateColor = profile.appColor;
+                break;
+            }
+        }
+    }
 
     // NumLock
     keyState = GetKeyState(VK_NUMLOCK) & 0x0001;
     pressedKey = LogiLed::KeyName::NUM_LOCK;
-    colorToSet = (keyState == 0x0001) ? numLockColor : defaultColor;
+    colorToSet = (keyState == 0x0001) ? numLockColor : offStateColor;
     SetKeyColor(pressedKey, colorToSet);
 
     // ScrollLock
     keyState = GetKeyState(VK_SCROLL) & 0x0001;
     pressedKey = LogiLed::KeyName::SCROLL_LOCK;
-    colorToSet = (keyState == 0x0001) ? scrollLockColor : defaultColor;
+    colorToSet = (keyState == 0x0001) ? scrollLockColor : offStateColor;
     SetKeyColor(pressedKey, colorToSet);
 
     // CapsLock
     keyState = GetKeyState(VK_CAPITAL) & 0x0001;
     pressedKey = LogiLed::KeyName::CAPS_LOCK;
-    colorToSet = (keyState == 0x0001) ? capsLockColor : defaultColor;
+    colorToSet = (keyState == 0x0001) ? capsLockColor : offStateColor;
     SetKeyColor(pressedKey, colorToSet);
 }
 
@@ -141,6 +152,18 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode >= 0 && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)) {
         KBDLLHOOKSTRUCT* pKeyStruct = (KBDLLHOOKSTRUCT*)lParam;
 
+        // Determine the color to use for "off" state - app color if profile is active, otherwise default color
+        COLORREF offStateColor = defaultColor;
+        {
+            std::lock_guard<std::mutex> lock(appProfilesMutex);
+            for (const auto& profile : appColorProfiles) {
+                if (profile.isProfileCurrInUse) {
+                    offStateColor = profile.appColor;
+                    break;
+                }
+            }
+        }
+
         // Check if lock key was pressed and if lock keys feature is enabled
         if ((pKeyStruct->vkCode == VK_NUMLOCK) || (pKeyStruct->vkCode == VK_SCROLL) || (pKeyStruct->vkCode == VK_CAPITAL)) {
             // If lock keys feature is disabled, just set the key to default color
@@ -157,30 +180,32 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                     pressedKey = LogiLed::KeyName::CAPS_LOCK;
                     break;
                 }
-                SetKeyColor(pressedKey, defaultColor);
+                SetKeyColor(pressedKey, offStateColor);
                 return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
             }
 
             SHORT keyState;
             LogiLed::KeyName pressedKey;
             COLORREF colorToSet;
+            
+
 
             // The lock key state is updated only after this callback, so current state off means the key will be turned on
             switch (pKeyStruct->vkCode) {
             case VK_NUMLOCK:
                 keyState = GetKeyState(VK_NUMLOCK) & 0x0001;
                 pressedKey = LogiLed::KeyName::NUM_LOCK;
-                colorToSet = (keyState == 0x0000) ? numLockColor : defaultColor;
+                colorToSet = (keyState == 0x0000) ? numLockColor : offStateColor;
                 break;
             case VK_SCROLL:
                 keyState = GetKeyState(VK_SCROLL) & 0x0001;
                 pressedKey = LogiLed::KeyName::SCROLL_LOCK;
-                colorToSet = (keyState == 0x0000) ? scrollLockColor : defaultColor;
+                colorToSet = (keyState == 0x0000) ? scrollLockColor : offStateColor;
                 break;
             case VK_CAPITAL:
                 keyState = GetKeyState(VK_CAPITAL) & 0x0001;
                 pressedKey = LogiLed::KeyName::CAPS_LOCK;
-                colorToSet = (keyState == 0x0000) ? capsLockColor : defaultColor;
+                colorToSet = (keyState == 0x0000) ? capsLockColor : offStateColor;
                 break;
             }
 
@@ -566,8 +591,6 @@ bool IsLockKeysFeatureEnabled() {
 
 // Check running apps and update colors immediately
 void CheckRunningAppsAndUpdateColors() {
-    std::lock_guard<std::mutex> lock(appProfilesMutex);
-    
     OutputDebugStringW(L"[DEBUG] CheckRunningAppsAndUpdateColors() - Starting scan\n");
     
     // First, clear all displayed flags

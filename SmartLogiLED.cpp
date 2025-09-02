@@ -642,9 +642,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Set colors for lock keys based on current state
    SetLockKeysColor();
 
-   // Initialize app monitoring
-   InitializeAppMonitoring();
-   
    // Set main window handle for UI updates
    SetMainWindowHandle(hWnd);
    
@@ -683,7 +680,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    
    // Update lock keys checkbox
    UpdateLockKeysCheckbox(hWnd);
-   
+
+   // Initialize app monitoring
+   InitializeAppMonitoring();
+
    // Set up keyboard hook
    keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
    
