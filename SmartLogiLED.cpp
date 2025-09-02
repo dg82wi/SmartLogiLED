@@ -158,6 +158,8 @@ void ShowTrayContextMenu(HWND hWnd) {
 // Main window procedure (handles messages)
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     static HBRUSH hBrushNum = NULL, hBrushCaps = NULL, hBrushScroll = NULL, hBrushDefault = NULL;
+    static HBRUSH hBrushAppColor = NULL;
+    static HBRUSH hBrushAppHighlightColor = NULL;
     switch (message) {
         case WM_COMMAND:
             {
@@ -334,7 +336,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     return (LRESULT)hBrushDefault;
                 }
                 if (hCtrl == GetDlgItem(hWnd, IDC_BOX_APPCOLOR)) {
-                    static HBRUSH hBrushAppColor = NULL;
                     if (hBrushAppColor) DeleteObject(hBrushAppColor);
                     
                     HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
@@ -358,7 +359,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     return (LRESULT)hBrushAppColor;
                 }
                 if (hCtrl == GetDlgItem(hWnd, IDC_BOX_APPHIGHLIGHTCOLOR)) {
-                    static HBRUSH hBrushAppHighlightColor = NULL;
                     if (hBrushAppHighlightColor) DeleteObject(hBrushAppHighlightColor);
                     
                     HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
@@ -381,52 +381,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     // This just provides the background color
                     return (LRESULT)hBrushAppHighlightColor;
                 }
-            }
-            break;
-        case WM_PAINT:
-            {
-                // Paint color boxes
-                PAINTSTRUCT ps;
-                HDC hdc = BeginPaint(hWnd, &ps);
-                
-                RECT r;
-                HWND hBox;
-                
-                // Paint lock key color boxes
-                hBox = GetDlgItem(hWnd, IDC_BOX_NUMLOCK);
-                if (hBox) {
-                    GetWindowRect(hBox, &r);
-                    MapWindowPoints(NULL, hWnd, (LPPOINT)&r, 2);
-                    HBRUSH brush = CreateSolidBrush(numLockColor);
-                    FillRect(hdc, &r, brush);
-                    DeleteObject(brush);
-                }
-                hBox = GetDlgItem(hWnd, IDC_BOX_CAPSLOCK);
-                if (hBox) {
-                    GetWindowRect(hBox, &r);
-                    MapWindowPoints(NULL, hWnd, (LPPOINT)&r, 2);
-                    HBRUSH brush = CreateSolidBrush(capsLockColor);
-                    FillRect(hdc, &r, brush);
-                    DeleteObject(brush);
-                }
-                hBox = GetDlgItem(hWnd, IDC_BOX_SCROLLLOCK);
-                if (hBox) {
-                    GetWindowRect(hBox, &r);
-                    MapWindowPoints(NULL, hWnd, (LPPOINT)&r, 2);
-                    HBRUSH brush = CreateSolidBrush(scrollLockColor);
-                    FillRect(hdc, &r, brush);
-                    DeleteObject(brush);
-                }
-                hBox = GetDlgItem(hWnd, IDC_BOX_DEFAULTCOLOR);
-                if (hBox) {
-                    GetWindowRect(hBox, &r);
-                    MapWindowPoints(NULL, hWnd, (LPPOINT)&r, 2);
-                    HBRUSH brush = CreateSolidBrush(defaultColor);
-                    FillRect(hdc, &r, brush);
-                    DeleteObject(brush);
-                }
-                
-                EndPaint(hWnd, &ps);
             }
             break;
         case WM_DRAWITEM:
@@ -509,6 +463,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             if (hBrushCaps) DeleteObject(hBrushCaps);
             if (hBrushScroll) DeleteObject(hBrushScroll);
             if (hBrushDefault) DeleteObject(hBrushDefault);
+            if (hBrushAppColor) DeleteObject(hBrushAppColor);
+            if (hBrushAppHighlightColor) DeleteObject(hBrushAppHighlightColor);
             RemoveTrayIcon();
             CleanupAppMonitoring(); // Cleanup app monitoring before other cleanup
             UnhookWindowsHookEx(keyboardHook);
