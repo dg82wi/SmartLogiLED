@@ -44,3 +44,9 @@ void UpdateAppProfileColorInRegistry(const std::wstring& appName, COLORREF newAp
 void UpdateAppProfileHighlightColorInRegistry(const std::wstring& appName, COLORREF newHighlightColor);
 void UpdateAppProfileLockKeysEnabledInRegistry(const std::wstring& appName, bool lockKeysEnabled);
 void UpdateAppProfileHighlightKeysInRegistry(const std::wstring& appName, const std::vector<LogiLed::KeyName>& highlightKeys);
+
+// Export functionality
+void ExportAllProfilesToIniFiles();
+
+// Import functionality
+void ImportProfileFromIniFile(HWND hWnd);

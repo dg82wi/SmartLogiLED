@@ -61,6 +61,8 @@ void UpdateAppProfileHighlightKeys(const std::wstring& appName, const std::vecto
 std::wstring FormatHighlightKeysForDisplay(const std::vector<LogiLed::KeyName>& keys);
 LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode);
 std::wstring LogiLedKeyToDisplayName(LogiLed::KeyName key);
+std::wstring LogiLedKeyToConfigName(LogiLed::KeyName key); // For INI export
+LogiLed::KeyName ConfigNameToLogiLedKey(const std::wstring& configName); // For INI import
 void SetHighlightKeysColor(); // Apply highlight color to keys from active profile
 
 // Keyboard hook procedure
