@@ -152,6 +152,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="APP_MONITORING_USAGE.md" />
+    <None Include="LICENSE" />
     <None Include="README.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

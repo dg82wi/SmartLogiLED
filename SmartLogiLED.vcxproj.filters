@@ -61,5 +61,6 @@
   <ItemGroup>
     <None Include="README.md" />
     <None Include="APP_MONITORING_USAGE.md" />
+    <None Include="LICENSE" />
   </ItemGroup>
 </Project>

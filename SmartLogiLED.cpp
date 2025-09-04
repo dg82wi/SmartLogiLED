@@ -1,7 +1,13 @@
-// SmartLogiLED.cpp : Defines the entry point for the application.
+// SmartLogiLED - Advanced Logitech RGB Keyboard Controller
 //
 // This application controls Logitech RGB keyboard lighting for lock keys (NumLock, CapsLock, ScrollLock)
 // and allows the user to customize colors via a GUI and tray icon.
+//
+// Copyright (c) 2025 Günter DANKL
+// SPDX-License-Identifier: MIT
+//
+// SmartLogiLED.cpp : Defines the entry point for the application.
+
 
 #include "framework.h"
 #include "SmartLogiLED.h"
