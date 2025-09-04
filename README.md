@@ -1,15 +1,26 @@
 # SmartLogiLED
 
-A Windows application that controls Logitech RGB keyboard lighting for lock keys (NumLock, CapsLock, ScrollLock), allowing users to customize colors via a GUI and system tray integration.
+A Windows application that controls Logitech RGB keyboard lighting for lock keys (NumLock, CapsLock, ScrollLock) and provides application-specific color profiles, allowing users to customize colors via a GUI and system tray integration.
 
 ## Features
 
+### Core Lighting Features
 - **Lock Key Color Control**: Customize RGB colors for NumLock, CapsLock, and ScrollLock keys
 - **Real-time Updates**: Lock key colors change automatically when toggled
-- **System Tray Integration**: Minimize to system tray with context menu support
-- **Persistent Settings**: Color settings are saved to `settings.ini` and restored on startup
 - **Customizable Default Color**: Set a default color for all other keyboard keys
-- **Off Color Configuration**: Define a specific color for when lock keys are disabled
+- **Application-Specific Color Profiles**: Automatically change keyboard colors based on running applications
+
+### Application Monitoring
+- **Smart App Detection**: Only monitors visible applications (no background processes or hidden services)
+- **Automatic Color Switching**: Seamlessly switch keyboard colors when monitored applications start or stop
+- **Lock Key Control per App**: Enable or disable lock key functionality for specific applications
+- **Multiple Active Apps**: Intelligent handoff with most recently activated app priority
+- **Efficient Resource Usage**: Optimized monitoring with minimal CPU impact
+
+### User Interface & Integration
+- **System Tray Integration**: Minimize to system tray with context menu support
+- **Persistent Settings**: Color settings and app profiles are saved to registry and restored on startup
+- **Start Minimized Option**: Configure application to start minimized to system tray
 
 ## Requirements
 
@@ -29,7 +40,7 @@ A Windows application that controls Logitech RGB keyboard lighting for lock keys
 ### Building from Source
 1. Clone this repository:
    ```bash
-   git clone https://github.com/your-username/SmartLogiLED.git
+   git clone https://github.com/dg82wi/SmartLogiLED.git
    ```
 2. Open the project in Visual Studio
 3. Build the solution (Debug or Release configuration)
@@ -39,7 +50,7 @@ A Windows application that controls Logitech RGB keyboard lighting for lock keys
 
 ### First Launch
 1. Run `SmartLogiLED.exe`
-2. The application will minimize to the system tray automatically
+2. The application will start with default settings and begin monitoring applications
 3. If the Logitech LED SDK cannot be initialized, an error message will appear
 
 ### Configuring Colors
@@ -48,36 +59,36 @@ A Windows application that controls Logitech RGB keyboard lighting for lock keys
    - **NUM LOCK**: Color when NumLock is enabled
    - **CAPS LOCK**: Color when CapsLock is enabled
    - **SCROLL LOCK**: Color when ScrollLock is enabled
-   - **Off**: Color when lock keys are disabled
-   - **Other Keys**: Default color for all other keyboard keys
+   - **Default Color**: Color for all other keyboard keys and when lock keys are disabled
 3. Select your desired color and click OK
-4. Colors are automatically saved to `settings.ini`
+4. Colors are automatically saved to the Windows registry
+
+### Application Monitoring
+The application includes several predefined application profiles:
+- **Notepad** (`notepad.exe`): Yellow color, lock keys enabled
+- **Google Chrome** (`chrome.exe`): Cyan color, lock keys disabled
+- **Mozilla Firefox** (`firefox.exe`): Orange color, lock keys disabled
+- **Visual Studio Code** (`code.exe`): Green color, lock keys enabled
+- **Visual Studio** (`devenv.exe`): Purple color, lock keys enabled
+
+When any of these applications are visible and active:
+- The keyboard automatically switches to the application's configured color
+- Lock key behavior follows the application's lock key setting
+- When the application closes, the keyboard returns to the default color or hands off to another active monitored app
+- **Most Recently Activated Priority**: The most recently started monitored app takes precedence
 
 ### System Tray Features
 - **Double-click**: Restore the main window
 - **Right-click**: Show context menu with options:
   - **Open**: Restore the main window
+  - **Start Minimized**: Toggle start minimized setting
   - **Close**: Exit the application
 
 ### Keyboard Behavior
 - Lock key colors update instantly when you press NumLock, CapsLock, or ScrollLock
 - The application runs a global keyboard hook to detect lock key state changes
-- When the application starts, it sets all keys to the default color and applies current lock key states
-
-## Configuration File
-
-Settings are stored in `settings.ini` in the application directory:
-
-```ini
-[Colors]
-NumLock=0,179,0
-CapsLock=0,179,0
-ScrollLock=0,179,0
-LockKeyOff=0,89,89
-Default=0,89,89
-```
-
-Colors are stored as RGB values (0-255 range).
+- Lock key functionality can be disabled per application (keys will show default color)
+- When the application starts, it immediately checks for running applications and applies colors
 
 ## Technical Details
 
@@ -86,26 +97,66 @@ Colors are stored as RGB values (0-255 range).
 - **Framework**: Win32 API
 - **Dependencies**: Logitech LED SDK
 - **Build System**: Visual Studio project files
+- **Threading**: Multi-threaded application monitoring with mutex synchronization
 
 ### Key Components
 - **Main Window**: Color picker interface with preview boxes
 - **Keyboard Hook**: Global low-level keyboard hook for real-time lock key detection
+- **App Monitor Thread**: Background thread monitoring visible applications every 2 seconds
 - **Tray Integration**: System tray icon with context menu
-- **Settings Management**: INI file parsing for persistent configuration
+- **Configuration Management**: Windows registry for persistent configuration
 - **LED Control**: Integration with Logitech LED SDK for RGB lighting control
+
+### Application Monitoring Details
+- **Visibility Detection**: Only detects applications with visible, non-minimized windows
+- **Process Filtering**: Excludes background services and system processes
+- **Window Validation**: Checks for main application windows with titles
+- **Performance Optimized**: Efficient scanning with minimal system impact
+- **Thread Safety**: Mutex-protected data structures for safe multi-threading
+- **Intelligent Handoff**: Most recently activated monitored app takes precedence
+- **Debug Logging**: Comprehensive debug output for troubleshooting app switching logic
+
+### Enhanced Profile Management
+- **Profile State Tracking**: Each profile tracks both running state (`isAppRunning`) and display state (`isProfileCurrentlyInUse`)
+- **Most Recently Activated Logic**: The `lastActivatedProfile` variable tracks which profile should have priority
+- **Fallback Logic**: When the active profile stops, control passes to the most recently activated profile or first available
+- **Thread-Safe Operations**: All profile operations protected by mutex for safe concurrent access
 
 ### File Structure
 ```
 SmartLogiLED/
-??? SmartLogiLED.cpp          # Main application code
-??? SmartLogiLED.h            # Application header
+??? SmartLogiLED.cpp          # Main application code and UI
+??? SmartLogiLED.h            # Application header and definitions
+??? SmartLogiLED_Logic.cpp    # Core logic and app monitoring
+??? SmartLogiLED_Logic.h      # Logic function declarations
+??? SmartLogiLED_Config.cpp   # Registry persistence and configuration
+??? SmartLogiLED_Config.h     # Configuration function declarations
 ??? Resource.h                # Resource definitions
 ??? framework.h               # Framework includes
 ??? LogitechLEDLib.h          # Logitech SDK header
 ??? SmartLogiLED.rc           # Resource file
 ??? SmartLogiLED.vcxproj      # Visual Studio project
-??? settings.ini              # Configuration file (created at runtime)
+??? README.md                 # This file
+??? APP_MONITORING_USAGE.md   # Detailed app monitoring guide
 ```
+
+## Configuration
+
+Settings are stored in the Windows registry under:
+- **Main Settings**: `HKEY_CURRENT_USER\Software\SmartLogiLED`
+- **App Profiles**: `HKEY_CURRENT_USER\Software\SmartLogiLED\AppProfiles`
+
+### Registry Values
+- **Colors**: RGB values for lock keys and default color (stored as DWORD)
+- **StartMinimized**: Boolean flag for start minimized behavior
+- **Application Profiles**: Each app has its own subkey with color, highlight color, lock keys setting, and highlight keys
+
+### Persistent App Profiles
+Application profiles are automatically saved to and loaded from the registry, including:
+- Application name and colors
+- Lock keys enabled/disabled setting
+- Highlight colors and keys for future UI enhancements
+- Running state (runtime only) and display state tracking
 
 ## Troubleshooting
 
@@ -125,13 +176,62 @@ SmartLogiLED/
 - Restart the application
 - Check if another application is controlling the keyboard lighting
 
+**Application monitoring not working**
+- Ensure the target application has visible windows (not minimized)
+- Check if the application executable name matches the configured profile
+- Verify the application is not running as a background service
+
+**Default color not restoring properly**
+- This was a known issue in earlier versions where app colors would overwrite the user's default color
+- Fixed in current version: SetDefaultColor no longer mutates the global defaultColor variable
+- User's base default color is preserved and properly restored when apps exit
+
+**Multiple app handoff issues**
+- **Most Recently Activated Priority**: When multiple monitored apps are running, the most recently started app takes control
+- **Intelligent Fallback**: When an active app stops, control passes to the most recently activated profile that's still running
+- **Debug Logging**: Check debug output for detailed app switching behavior
+
 **Application doesn't start**
 - Ensure all required DLLs are present (especially Logitech LED SDK libraries)
 - Check Windows Event Viewer for error details
 - Verify Visual C++ Redistributable is installed
 
+**High CPU usage**
+- The application is optimized for low CPU usage with 2-second monitoring intervals
+- If experiencing issues, restart the application
+- Check for conflicting keyboard software
+
 ### Debug Mode
-When building in Debug configuration, additional error checking and logging may be available.
+When building in Debug configuration, comprehensive debug logging is available via `OutputDebugStringW` calls, including:
+- App start/stop detection
+- Profile state changes (`isAppRunning` and `isProfileCurrentlyInUse`)
+- Most recently activated profile tracking
+- Color handoff logic
+
+## Customization
+
+### Adding New Application Profiles
+Application profiles are automatically persisted to the registry. To add new profiles programmatically:
+
+1. Use the `AddAppColorProfile()` function:
+   ```cpp
+   AddAppColorProfile(L"yourapp.exe", RGB(255, 0, 0), true);  // Red color, lock keys enabled
+   ```
+2. Profiles are automatically saved to registry and restored on startup
+3. Future versions will include a GUI for managing application profiles
+
+### Modifying Monitoring Behavior
+The monitoring thread can be customized in `SmartLogiLED_Logic.cpp`:
+- **Scan Interval**: Modify the sleep duration in `AppMonitorThreadProc()`
+- **Visibility Criteria**: Adjust the window detection logic in `IsProcessVisible()`
+- **Process Filtering**: Modify the process enumeration in `GetVisibleRunningProcesses()`
+- **Priority Logic**: Adjust the most recently activated profile handling
+
+### Registry Configuration
+Advanced users can modify settings directly in the registry:
+- Navigate to `HKEY_CURRENT_USER\Software\SmartLogiLED\AppProfiles`
+- Each application has its own subkey with configurable values
+- Changes take effect after restarting the application
 
 ## Contributing
 
@@ -146,6 +246,7 @@ When building in Debug configuration, additional error checking and logging may 
 - Add comments for complex logic
 - Ensure compatibility with C++14
 - Test on multiple Logitech keyboard models if possible
+- Ensure thread safety for any shared data structures
 
 ## License
 
@@ -159,20 +260,44 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Version History
 
-### v1.0.0 (Current)
+### v2.2.0 (Current)
+- **IMPROVED**: Most recently activated app priority system for better multi-app handling
+- **NEW**: Enhanced debug logging for troubleshooting app switching behavior
+- **IMPROVED**: Profile state tracking with separate `isAppRunning` and `isProfileCurrentlyInUse` flags
+- **IMPROVED**: Intelligent fallback logic when active profiles stop
+- **IMPROVED**: Better thread safety and mutex protection for profile operations
+
+### v2.1.0
+- **FIXED**: Default color preservation - app colors no longer overwrite user's base default color
+- **IMPROVED**: Multiple active app handoff - intelligent switching between monitored applications
+- **NEW**: Separate configuration module (`SmartLogiLED_Config.cpp`) for better code organization
+- **NEW**: Persistent app profile storage in Windows registry
+- **IMPROVED**: Lock keys feature respects app-specific settings more consistently
+- **IMPROVED**: Enhanced thread safety and error handling
+
+### v2.0.0
+- **NEW**: Application monitoring and automatic color switching
+- **NEW**: Visible application detection (excludes background processes)
+- **NEW**: Per-application lock key control
+- **NEW**: Start minimized option with registry persistence
+- **IMPROVED**: Settings now stored in Windows registry
+- **IMPROVED**: Enhanced error handling and thread safety
+- **IMPROVED**: Optimized resource usage and performance
+
+### v1.0.0
 - Initial release
 - Basic lock key color control
 - System tray integration
-- Settings persistence
+- Settings persistence via INI file
 - Real-time keyboard hook integration
 
 ## Support
 
 For bugs, feature requests, or general questions:
-- Create an issue on GitHub
+- Create an issue on GitHub: https://github.com/dg82wi/SmartLogiLED/issues
 - Check existing issues for similar problems
 - Provide detailed information about your system and keyboard model
 
 ---
 
-**Note**: This application requires a compatible Logitech RGB keyboard and the official Logitech software to function properly.
+**Note**: This application requires a compatible Logitech RGB keyboard and the official Logitech software to function properly. The application monitoring feature works best with applications that have visible windows and may not detect console applications or background services.
