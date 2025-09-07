@@ -8,11 +8,13 @@
 //
 // SmartLogiLED.cpp : Defines the entry point for the application.
 
-
 #include "framework.h"
 #include "SmartLogiLED.h"
-#include "SmartLogiLED_Logic.h"
 #include "SmartLogiLED_Config.h"
+#include "SmartLogiLED_LockKeys.h"
+#include "SmartLogiLED_AppProfiles.h"
+#include "SmartLogiLED_KeyMapping.h"
+#include "SmartLogiLED_Version.h"
 #include "LogitechLEDLib.h"
 #include "Resource.h"
 #include <shellapi.h>
@@ -38,6 +40,23 @@ COLORREF capsLockColor = RGB(0, 179, 0); // Caps Lock color
 COLORREF scrollLockColor = RGB(0, 179, 0); // Scroll Lock color
 COLORREF numLockColor = RGB(0, 179, 0); // Num Lock color
 COLORREF defaultColor = RGB(0, 89, 89); // default color used for all other keys and lock keys when off
+
+// Version information functions
+std::wstring GetApplicationVersion() {
+    return SMARTLOGILED_VERSION_STRING;
+}
+
+std::wstring GetApplicationFullVersion() {
+    return SMARTLOGILED_VERSION_FULL;
+}
+
+std::wstring GetApplicationName() {
+    return SMARTLOGILED_PRODUCT_NAME;
+}
+
+DWORD GetVersionNumber() {
+    return SMARTLOGILED_VERSION_NUMBER;
+}
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -136,7 +155,13 @@ void CreateTrayIcon(HWND hWnd) {
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     nid.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_SMARTLOGILED));
     nid.uCallbackMessage = WM_APP + 1; // Custom message
-    wcscpy_s(nid.szTip, L"SmartLogiLED");
+    
+    // Create tooltip with version information
+    std::wstring tooltip = SMARTLOGILED_PRODUCT_NAME;
+    tooltip += L" v";
+    tooltip += SMARTLOGILED_VERSION_STRING;
+    wcscpy_s(nid.szTip, tooltip.c_str());
+    
     Shell_NotifyIcon(NIM_ADD, &nid);
 }
 
@@ -479,7 +504,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             if (hBrushAppHighlightColor) DeleteObject(hBrushAppHighlightColor);
             RemoveTrayIcon();
             CleanupAppMonitoring(); // Cleanup app monitoring before other cleanup
-            UnhookWindowsHookEx(keyboardHook);
+            DisableKeyboardHook(); // Use managed hook cleanup
             LogiLedRestoreLighting();
             LogiLedShutdown();
             PostQuitMessage(0);
@@ -508,12 +533,38 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                 ShowTrayContextMenu(hWnd);
             }
             break;
+        case WM_LOCK_KEY_PRESSED: // Custom message for lock key pressed
+            {
+                DWORD vkCode = (DWORD)wParam;
+                HandleLockKeyPressed(vkCode);
+            }
+            break;
         case WM_UPDATE_PROFILE_COMBO: // Custom message to update profile combo box
             UpdateActiveProfileSelection(hWnd);
             UpdateCurrentProfileLabel(hWnd);
             UpdateRemoveButtonState(hWnd);
             UpdateAppProfileColorBoxes(hWnd);
             UpdateLockKeysCheckbox(hWnd);
+            break;
+        case WM_APP_STARTED: // Custom message for app started
+            {
+                // Get app name from message parameter (allocated on heap by thread)
+                std::wstring* appName = reinterpret_cast<std::wstring*>(lParam);
+                if (appName) {
+                    HandleAppStarted(*appName);
+                    delete appName; // Clean up heap allocated string
+                }
+            }
+            break;
+        case WM_APP_STOPPED: // Custom message for app stopped
+            {
+                // Get app name from message parameter (allocated on heap by thread)
+                std::wstring* appName = reinterpret_cast<std::wstring*>(lParam);
+                if (appName) {
+                    HandleAppStopped(*appName);
+                    delete appName; // Clean up heap allocated string
+                }
+            }
             break;
         case WM_INITMENUPOPUP:
             // Update menu checkmarks when menu is about to be displayed
@@ -652,8 +703,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Initialize app monitoring
    InitializeAppMonitoring();
 
-   // Set up keyboard hook
-   keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
+   // Initialize keyboard hook based on lock keys feature status
+   UpdateKeyboardHookStateUnsafe();
    
    return TRUE;
 }
