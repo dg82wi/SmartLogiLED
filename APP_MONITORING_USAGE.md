@@ -1,4 +1,4 @@
-# SmartLogiLED App Monitoring Usage Guide
+﻿# SmartLogiLED App Monitoring Usage Guide
 
 ## Overview
 The SmartLogiLED application includes advanced functionality to detect when specific applications are started by Windows and automatically change the keyboard lighting colors based on the running application. The system features intelligent priority handling with most recently activated app taking precedence, individual key highlighting capabilities, and each app profile can control whether the lock keys feature is enabled or disabled. All profiles are automatically persisted to the Windows registry with export/import functionality.
@@ -89,12 +89,12 @@ When multiple monitored applications are running simultaneously:
 - **Default Restoration**: If no monitored apps remain active, returns to the user's default color
 
 ### Example Scenario
-1. **Start Chrome** (cyan color, lock keys disabled) ? Keyboard becomes cyan, lock keys disabled, `lastActivatedProfile = "chrome.exe"`
-2. **Start VS Code** (green color, lock keys enabled) ? Keyboard becomes green, lock keys enabled, `lastActivatedProfile = "code.exe"` (most recent takes control)
-3. **Start Notepad** (yellow color, lock keys enabled) ? Keyboard becomes yellow, lock keys enabled, `lastActivatedProfile = "notepad.exe"` (most recent takes control)
-4. **Close Notepad** ? Keyboard returns to VS Code colors (green, lock keys enabled) since it's the most recently activated of the remaining apps
-5. **Close VS Code** ? Keyboard returns to Chrome colors (cyan, lock keys disabled)
-6. **Close Chrome** ? Keyboard returns to user's default color, lock keys enabled, `lastActivatedProfile` cleared
+1. **Start Chrome** (cyan color, lock keys disabled) → Keyboard becomes cyan, lock keys disabled, `lastActivatedProfile = "chrome.exe"`
+2. **Start VS Code** (green color, lock keys enabled) → Keyboard becomes green, lock keys enabled, `lastActivatedProfile = "code.exe"` (most recent takes control)
+3. **Start Notepad** (yellow color, lock keys enabled) → Keyboard becomes yellow, lock keys enabled, `lastActivatedProfile = "notepad.exe"` (most recent takes control)
+4. **Close Notepad** → Keyboard returns to VS Code colors (green, lock keys enabled) since it's the most recently activated of the remaining apps
+5. **Close VS Code** → Keyboard returns to Chrome colors (cyan, lock keys disabled)
+6. **Close Chrome** → Keyboard returns to user's default color, lock keys enabled, `lastActivatedProfile` cleared
 
 ### Debug Output Example
 ```
@@ -131,14 +131,14 @@ struct AppColorProfile {
 ### Registry Structure
 ```
 HKEY_CURRENT_USER\Software\SmartLogiLED\AppProfiles\
-??? notepad.exe\
-?   ??? AppColor (DWORD): RGB color value
-?   ??? AppHighlightColor (DWORD): Highlight color value  
-?   ??? LockKeysEnabled (DWORD): 1 = enabled, 0 = disabled
-?   ??? HighlightKeys (BINARY): Array of LogiLed::KeyName enum values
-??? chrome.exe\
-?   ??? AppColor (DWORD): RGB color value
-?   ??? ...
+├── notepad.exe\
+│   ├── AppColor (DWORD): RGB color value
+│   ├── AppHighlightColor (DWORD): Highlight color value  
+│   ├── LockKeysEnabled (DWORD): 1 = enabled, 0 = disabled
+│   └── HighlightKeys (BINARY): Array of LogiLed::KeyName enum values
+├── chrome.exe\
+│   ├── AppColor (DWORD): RGB color value
+│   └── ...
 ```
 
 ## Export/Import Functionality
