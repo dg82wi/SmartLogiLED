@@ -159,6 +159,7 @@
   <ItemGroup>
     <None Include="APP_MONITORING_USAGE.md" />
     <None Include="CHANGELOG.md" />
+    <None Include="GameProfiles\SmartLogiLED_ACMirage.ini" />
     <None Include="LICENSE" />
     <None Include="README.md" />
   </ItemGroup>
