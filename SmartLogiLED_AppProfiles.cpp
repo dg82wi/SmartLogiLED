@@ -404,22 +404,84 @@ void AddAppColorProfile(const std::wstring& appName, COLORREF color, bool lockKe
 
 // Remove an app color profile
 void RemoveAppColorProfile(const std::wstring& appName) {
-    std::lock_guard<std::mutex> lock(appProfilesMutex);
+    AppColorProfile* fallbackProfile = nullptr;
+    bool needsDefaultRestore = false;
+    bool wasDisplayedProfile = false;
     
-    appColorProfiles.erase(
-        std::remove_if(appColorProfiles.begin(), appColorProfiles.end(),
-            [&appName](const AppColorProfile& profile) {
-                std::wstring lowerExisting = profile.appName;
-                std::wstring lowerToRemove = appName;
-                std::transform(lowerExisting.begin(), lowerExisting.end(), lowerExisting.begin(), ::towlower);
-                std::transform(lowerToRemove.begin(), lowerToRemove.end(), lowerToRemove.begin(), ::towlower);
-                return lowerExisting == lowerToRemove;
-            }),
-        appColorProfiles.end()
-    );
+    // Phase 1: Remove profile under lock and determine fallback if needed
+    {
+        std::lock_guard<std::mutex> lock(appProfilesMutex);
+        
+        // First, check if we're removing the currently displayed profile
+        for (const auto& profile : appColorProfiles) {
+            std::wstring lowerExisting = profile.appName;
+            std::wstring lowerToRemove = appName;
+            std::transform(lowerExisting.begin(), lowerExisting.end(), lowerExisting.begin(), ::towlower);
+            std::transform(lowerToRemove.begin(), lowerToRemove.end(), lowerToRemove.begin(), ::towlower);
+            
+            if (lowerExisting == lowerToRemove && profile.isProfileCurrInUse) {
+                wasDisplayedProfile = true;
+                std::wstringstream debugMsg;
+                debugMsg << L"[DEBUG] Removing currently displayed profile: " << profile.appName << L"\n";
+                OutputDebugStringW(debugMsg.str().c_str());
+                break;
+            }
+        }
+        
+        // Remove the profile
+        appColorProfiles.erase(
+            std::remove_if(appColorProfiles.begin(), appColorProfiles.end(),
+                [&appName](const AppColorProfile& profile) {
+                    std::wstring lowerExisting = profile.appName;
+                    std::wstring lowerToRemove = appName;
+                    std::transform(lowerExisting.begin(), lowerExisting.end(), lowerExisting.begin(), ::towlower);
+                    std::transform(lowerToRemove.begin(), lowerToRemove.end(), lowerToRemove.begin(), ::towlower);
+                    return lowerExisting == lowerToRemove;
+                }),
+            appColorProfiles.end()
+        );
+        
+        // Clean up activation history after removing profile
+        CleanupActivationHistoryInternal();
+        
+        // If we removed the displayed profile, find a fallback
+        if (wasDisplayedProfile) {
+            // Find the best fallback profile using enhanced logic
+            fallbackProfile = FindBestFallbackProfileInternal(appName);
+            
+            if (fallbackProfile) {
+                // Mark the fallback profile as displayed
+                fallbackProfile->isProfileCurrInUse = true;
+                
+                // Update activation history to make this the current one
+                UpdateActivationHistoryInternal(fallbackProfile->appName);
+                
+                // Debug message for isProfileCurrInUse change
+                std::wstringstream debugMsg;
+                debugMsg << L"[DEBUG] Profile " << fallbackProfile->appName << L" - isProfileCurrInUse changed to TRUE (fallback after profile deletion)\n";
+                OutputDebugStringW(debugMsg.str().c_str());
+            } else {
+                // No other profiles are running - restore default colors
+                OutputDebugStringW(L"[DEBUG] No fallback profile available after deletion - restoring default colors\n");
+                activationHistory.clear(); // Clear activation history
+                needsDefaultRestore = true;
+            }
+        }
+    } // Mutex released here
     
-    // Clean up activation history after removing profile
-    CleanupActivationHistoryInternal();
+    // Phase 2: Apply colors without holding mutex (only if we removed the displayed profile)
+    if (wasDisplayedProfile) {
+        if (fallbackProfile) {
+            ApplyProfileColorsInternal(fallbackProfile);
+        } else if (needsDefaultRestore) {
+            ApplyProfileColorsInternal(nullptr); // This will apply default colors
+        }
+        
+        // Notify UI to update combo box
+        if (mainWindowHandle) {
+            PostMessage(mainWindowHandle, WM_UPDATE_PROFILE_COMBO, 0, 0);
+        }
+    }
 }
 
 // Check running apps and update colors immediately
