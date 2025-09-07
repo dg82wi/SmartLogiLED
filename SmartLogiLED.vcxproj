@@ -136,12 +136,14 @@
     <ClInclude Include="Resource.h" />
     <ClInclude Include="SmartLogiLED.h" />
     <ClInclude Include="SmartLogiLED_Config.h" />
+    <ClInclude Include="SmartLogiLED_KeyMapping.h" />
     <ClInclude Include="SmartLogiLED_Logic.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SmartLogiLED.cpp" />
     <ClCompile Include="SmartLogiLED_Config.cpp" />
+    <ClCompile Include="SmartLogiLED_KeyMapping.cpp" />
     <ClCompile Include="SmartLogiLED_Logic.cpp" />
   </ItemGroup>
   <ItemGroup>

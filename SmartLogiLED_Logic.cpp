@@ -6,6 +6,7 @@
 #include "SmartLogiLED.h"
 #include "SmartLogiLED_Logic.h"
 #include "SmartLogiLED_Config.h"
+#include "SmartLogiLED_KeyMapping.h"
 #include "LogitechLEDLib.h"
 #include "Resource.h"
 #include <commdlg.h>
@@ -16,6 +17,7 @@
 #include <mutex>
 #include <chrono>
 #include <sstream>  // For wstringstream
+#include <deque>    // For activation history
 
 // External variables from main file
 extern COLORREF capsLockColor;
@@ -31,6 +33,121 @@ static std::thread appMonitorThread;
 static bool appMonitoringRunning = false;
 static HWND mainWindowHandle = nullptr;
 static std::wstring lastActivatedProfile; // Track the most recently activated profile
+static std::deque<std::wstring> activationHistory; // Enhanced: Track activation history for better fallback
+static const size_t MAX_ACTIVATION_HISTORY = 10; // Maximum number of profiles to remember in history
+
+// Enhanced helper function to manage activation history
+void UpdateActivationHistory(const std::wstring& profileName) {
+    // Note: This function assumes the appProfilesMutex is already locked by the caller
+    
+    // Remove the profile from history if it already exists
+    auto it = std::find(activationHistory.begin(), activationHistory.end(), profileName);
+    if (it != activationHistory.end()) {
+        activationHistory.erase(it);
+    }
+    
+    // Add to front of history (most recent)
+    activationHistory.push_front(profileName);
+    
+    // Limit history size
+    if (activationHistory.size() > MAX_ACTIVATION_HISTORY) {
+        activationHistory.pop_back();
+    }
+    
+    // Update the current last activated profile
+    lastActivatedProfile = profileName;
+    
+    // Debug logging
+    std::wstringstream debugMsg;
+    debugMsg << L"[DEBUG] Activation history updated. Current order: ";
+    for (const auto& name : activationHistory) {
+        debugMsg << name << L" -> ";
+    }
+    debugMsg << L"END\n";
+    OutputDebugStringW(debugMsg.str().c_str());
+}
+
+// Enhanced function to find the best fallback profile
+AppColorProfile* FindBestFallbackProfile(const std::wstring& excludeProfile = L"") {
+    // Note: This function assumes the appProfilesMutex is already locked by the caller
+    
+    // Go through activation history from most recent to oldest
+    for (const auto& historicalProfile : activationHistory) {
+        // Skip the excluded profile (usually the one that just stopped)
+        if (!excludeProfile.empty() && historicalProfile == excludeProfile) {
+            continue;
+        }
+        
+        // Find this profile in our current profiles
+        for (auto& profile : appColorProfiles) {
+            std::wstring lowerHistorical = historicalProfile;
+            std::wstring lowerProfile = profile.appName;
+            std::transform(lowerHistorical.begin(), lowerHistorical.end(), lowerHistorical.begin(), ::towlower);
+            std::transform(lowerProfile.begin(), lowerProfile.end(), lowerProfile.begin(), ::towlower);
+            
+            if (lowerHistorical == lowerProfile && profile.isAppRunning) {
+                // Found a running profile from our history - this is our best fallback
+                std::wstringstream debugMsg;
+                debugMsg << L"[DEBUG] Best fallback profile found: " << profile.appName 
+                         << L" (from activation history)\n";
+                OutputDebugStringW(debugMsg.str().c_str());
+                return &profile;
+            }
+        }
+    }
+    
+    // If no profile from history is available, find any running profile
+    for (auto& profile : appColorProfiles) {
+        if (profile.isAppRunning && 
+            (excludeProfile.empty() || profile.appName != excludeProfile)) {
+            std::wstringstream debugMsg;
+            debugMsg << L"[DEBUG] Fallback profile found (not in history): " << profile.appName << L"\n";
+            OutputDebugStringW(debugMsg.str().c_str());
+            return &profile;
+        }
+    }
+    
+    OutputDebugStringW(L"[DEBUG] No fallback profile available\n");
+    return nullptr;
+}
+
+// Enhanced function to clean up activation history
+void CleanupActivationHistory() {
+    // Note: This function assumes the appProfilesMutex is already locked by the caller
+    
+    // Remove profiles from history that are no longer configured
+    auto it = activationHistory.begin();
+    while (it != activationHistory.end()) {
+        bool profileExists = false;
+        for (const auto& profile : appColorProfiles) {
+            std::wstring lowerHistorical = *it;
+            std::wstring lowerProfile = profile.appName;
+            std::transform(lowerHistorical.begin(), lowerHistorical.end(), lowerHistorical.begin(), ::towlower);
+            std::transform(lowerProfile.begin(), lowerProfile.end(), lowerProfile.begin(), ::towlower);
+            
+            if (lowerHistorical == lowerProfile) {
+                profileExists = true;
+                break;
+            }
+        }
+        
+        if (!profileExists) {
+            std::wstringstream debugMsg;
+            debugMsg << L"[DEBUG] Removing deleted profile from activation history: " << *it << L"\n";
+            OutputDebugStringW(debugMsg.str().c_str());
+            it = activationHistory.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    
+    // Update lastActivatedProfile to match the front of history
+    if (!activationHistory.empty()) {
+        lastActivatedProfile = activationHistory.front();
+    } else {
+        lastActivatedProfile.clear();
+    }
+}
 
 // Set color for a key using Logitech LED SDK
 void SetKeyColor(LogiLed::KeyName key, COLORREF color) {
@@ -421,6 +538,9 @@ void RemoveAppColorProfile(const std::wstring& appName) {
             }),
         appColorProfiles.end()
     );
+    
+    // Clean up activation history after removing profile
+    CleanupActivationHistory();
 }
 
 // Check if lock keys feature should be enabled based on current displayed profile
@@ -440,6 +560,8 @@ bool IsLockKeysFeatureEnabled() {
 
 // Check running apps and update colors immediately
 void CheckRunningAppsAndUpdateColors() {
+    std::lock_guard<std::mutex> lock(appProfilesMutex);
+    
     OutputDebugStringW(L"[DEBUG] CheckRunningAppsAndUpdateColors() - Starting scan\n");
     
     // First, clear all displayed flags
@@ -470,20 +592,18 @@ void CheckRunningAppsAndUpdateColors() {
         }
     }
     
-    // Find the first running profile (simple initialization logic)
-    for (auto& profile : appColorProfiles) {
-        if (profile.isAppRunning) {
-            selectedProfile = &profile;
-            foundActiveApp = true;
-            // Initialize lastActivatedProfile to this profile
-            lastActivatedProfile = profile.appName;
-            
-            // Debug message for last activated profile initialization
-            std::wstringstream debugMsgLast;
-            debugMsgLast << L"[DEBUG] Most recently activated profile initialized to: " << profile.appName << L" (app start)\n";
-            OutputDebugStringW(debugMsgLast.str().c_str());
-            break;
-        }
+    // Use enhanced fallback logic to find the best profile
+    selectedProfile = FindBestFallbackProfile();
+    
+    if (selectedProfile) {
+        foundActiveApp = true;
+        // Update activation history with this profile
+        UpdateActivationHistory(selectedProfile->appName);
+        
+        // Debug message for last activated profile initialization
+        std::wstringstream debugMsgLast;
+        debugMsgLast << L"[DEBUG] Most recently activated profile initialized to: " << selectedProfile->appName << L" (scan)\n";
+        OutputDebugStringW(debugMsgLast.str().c_str());
     }
     
     // Activate the selected profile
@@ -508,7 +628,8 @@ void CheckRunningAppsAndUpdateColors() {
     
     if (!foundActiveApp) {
         OutputDebugStringW(L"[DEBUG] CheckRunningAppsAndUpdateColors() - No active profiles found, using default colors\n");
-        lastActivatedProfile.clear(); // Ensure it stays empty if no profiles are running
+        lastActivatedProfile.clear();
+        activationHistory.clear(); // Enhanced: clear activation history when no profiles are active
     }
     
     OutputDebugStringW(L"[DEBUG] CheckRunningAppsAndUpdateColors() - Scan complete\n");
@@ -542,6 +663,12 @@ void SetMainWindowHandle(HWND hWnd) {
 std::wstring GetLastActivatedProfileName() {
     std::lock_guard<std::mutex> lock(appProfilesMutex);
     return lastActivatedProfile;
+}
+
+// Enhanced: Get the activation history for debugging/UI purposes
+std::vector<std::wstring> GetActivationHistory() {
+    std::lock_guard<std::mutex> lock(appProfilesMutex);
+    return std::vector<std::wstring>(activationHistory.begin(), activationHistory.end());
 }
 
 // Update app profile color
@@ -672,496 +799,6 @@ void UpdateAppProfileHighlightKeys(const std::wstring& appName, const std::vecto
     }
 }
 
-// Convert Virtual Key code to LogiLed::KeyName
-LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode) {
-    switch (vkCode) {
-        case VK_ESCAPE: return LogiLed::KeyName::ESC;
-        case VK_F1: return LogiLed::KeyName::F1;
-        case VK_F2: return LogiLed::KeyName::F2;
-        case VK_F3: return LogiLed::KeyName::F3;
-        case VK_F4: return LogiLed::KeyName::F4;
-        case VK_F5: return LogiLed::KeyName::F5;
-        case VK_F6: return LogiLed::KeyName::F6;
-        case VK_F7: return LogiLed::KeyName::F7;
-        case VK_F8: return LogiLed::KeyName::F8;
-        case VK_F9: return LogiLed::KeyName::F9;
-        case VK_F10: return LogiLed::KeyName::F10;
-        case VK_F11: return LogiLed::KeyName::F11;
-        case VK_F12: return LogiLed::KeyName::F12;
-        case VK_SNAPSHOT: return LogiLed::KeyName::PRINT_SCREEN;
-        case VK_SCROLL: return LogiLed::KeyName::SCROLL_LOCK;
-        case VK_PAUSE: return LogiLed::KeyName::PAUSE_BREAK;
-        case VK_OEM_3: return LogiLed::KeyName::TILDE; // ~ key
-        case '1': return LogiLed::KeyName::ONE;
-        case '2': return LogiLed::KeyName::TWO;
-        case '3': return LogiLed::KeyName::THREE;
-        case '4': return LogiLed::KeyName::FOUR;
-        case '5': return LogiLed::KeyName::FIVE;
-        case '6': return LogiLed::KeyName::SIX;
-        case '7': return LogiLed::KeyName::SEVEN;
-        case '8': return LogiLed::KeyName::EIGHT;
-        case '9': return LogiLed::KeyName::NINE;
-        case '0': return LogiLed::KeyName::ZERO;
-        case VK_OEM_MINUS: return LogiLed::KeyName::MINUS;
-        case VK_OEM_PLUS: return LogiLed::KeyName::EQUALS;
-        case VK_BACK: return LogiLed::KeyName::BACKSPACE;
-        case VK_INSERT: return LogiLed::KeyName::INSERT;
-        case VK_HOME: return LogiLed::KeyName::HOME;
-        case VK_PRIOR: return LogiLed::KeyName::PAGE_UP;
-        case VK_NUMLOCK: return LogiLed::KeyName::NUM_LOCK;
-        case VK_DIVIDE: return LogiLed::KeyName::NUM_SLASH;
-        case VK_MULTIPLY: return LogiLed::KeyName::NUM_ASTERISK;
-        case VK_SUBTRACT: return LogiLed::KeyName::NUM_MINUS;
-        case VK_TAB: return LogiLed::KeyName::TAB;
-        case 'Q': return LogiLed::KeyName::Q;
-        case 'W': return LogiLed::KeyName::W;
-        case 'E': return LogiLed::KeyName::E;
-        case 'R': return LogiLed::KeyName::R;
-        case 'T': return LogiLed::KeyName::T;
-        case 'Y': return LogiLed::KeyName::Y;
-        case 'U': return LogiLed::KeyName::U;
-        case 'I': return LogiLed::KeyName::I;
-        case 'O': return LogiLed::KeyName::O;
-        case 'P': return LogiLed::KeyName::P;
-        case VK_OEM_4: return LogiLed::KeyName::OPEN_BRACKET; // [
-        case VK_OEM_6: return LogiLed::KeyName::CLOSE_BRACKET; // ]
-        case VK_OEM_5: return LogiLed::KeyName::BACKSLASH; // backslash
-        case VK_DELETE: return LogiLed::KeyName::KEYBOARD_DELETE;
-        case VK_END: return LogiLed::KeyName::END;
-        case VK_NEXT: return LogiLed::KeyName::PAGE_DOWN;
-        case VK_NUMPAD7: return LogiLed::KeyName::NUM_SEVEN;
-        case VK_NUMPAD8: return LogiLed::KeyName::NUM_EIGHT;
-        case VK_NUMPAD9: return LogiLed::KeyName::NUM_NINE;
-        case VK_ADD: return LogiLed::KeyName::NUM_PLUS;
-        case VK_CAPITAL: return LogiLed::KeyName::CAPS_LOCK;
-        case 'A': return LogiLed::KeyName::A;
-        case 'S': return LogiLed::KeyName::S;
-        case 'D': return LogiLed::KeyName::D;
-        case 'F': return LogiLed::KeyName::F;
-        case 'G': return LogiLed::KeyName::G;
-        case 'H': return LogiLed::KeyName::H;
-        case 'J': return LogiLed::KeyName::J;
-        case 'K': return LogiLed::KeyName::K;
-        case 'L': return LogiLed::KeyName::L;
-        case VK_OEM_1: return LogiLed::KeyName::SEMICOLON; // ;
-        case VK_OEM_7: return LogiLed::KeyName::APOSTROPHE; // '
-        case VK_RETURN: return LogiLed::KeyName::ENTER;
-        case VK_NUMPAD4: return LogiLed::KeyName::NUM_FOUR;
-        case VK_NUMPAD5: return LogiLed::KeyName::NUM_FIVE;
-        case VK_NUMPAD6: return LogiLed::KeyName::NUM_SIX;
-        case VK_LSHIFT: return LogiLed::KeyName::LEFT_SHIFT;
-        case 'Z': return LogiLed::KeyName::Z;
-        case 'X': return LogiLed::KeyName::X;
-        case 'C': return LogiLed::KeyName::C;
-        case 'V': return LogiLed::KeyName::V;
-        case 'B': return LogiLed::KeyName::B;
-        case 'N': return LogiLed::KeyName::N;
-        case 'M': return LogiLed::KeyName::M;
-        case VK_OEM_COMMA: return LogiLed::KeyName::COMMA;
-        case VK_OEM_PERIOD: return LogiLed::KeyName::PERIOD;
-        case VK_OEM_2: return LogiLed::KeyName::FORWARD_SLASH; // /
-        case VK_RSHIFT: return LogiLed::KeyName::RIGHT_SHIFT;
-        case VK_UP: return LogiLed::KeyName::ARROW_UP;
-        case VK_NUMPAD1: return LogiLed::KeyName::NUM_ONE;
-        case VK_NUMPAD2: return LogiLed::KeyName::NUM_TWO;
-        case VK_NUMPAD3: return LogiLed::KeyName::NUM_THREE;
-        case VK_LCONTROL: return LogiLed::KeyName::LEFT_CONTROL;
-        case VK_LWIN: return LogiLed::KeyName::LEFT_WINDOWS;
-        case VK_LMENU: return LogiLed::KeyName::LEFT_ALT;
-        case VK_SPACE: return LogiLed::KeyName::SPACE;
-        case VK_RMENU: return LogiLed::KeyName::RIGHT_ALT;
-        case VK_RWIN: return LogiLed::KeyName::RIGHT_WINDOWS;
-        case VK_APPS: return LogiLed::KeyName::APPLICATION_SELECT;
-        case VK_RCONTROL: return LogiLed::KeyName::RIGHT_CONTROL;
-        case VK_LEFT: return LogiLed::KeyName::ARROW_LEFT;
-        case VK_DOWN: return LogiLed::KeyName::ARROW_DOWN;
-        case VK_RIGHT: return LogiLed::KeyName::ARROW_RIGHT;
-        case VK_NUMPAD0: return LogiLed::KeyName::NUM_ZERO;
-        case VK_DECIMAL: return LogiLed::KeyName::NUM_PERIOD;
-        default: return LogiLed::KeyName::ESC; // Return ESC for unknown keys
-    }
-}
-
-// Convert LogiLed::KeyName to display name
-std::wstring LogiLedKeyToDisplayName(LogiLed::KeyName key) {
-    switch (key) {
-        case LogiLed::KeyName::ESC: return L"ESC";
-        case LogiLed::KeyName::F1: return L"F1";
-        case LogiLed::KeyName::F2: return L"F2";
-        case LogiLed::KeyName::F3: return L"F3";
-        case LogiLed::KeyName::F4: return L"F4";
-        case LogiLed::KeyName::F5: return L"F5";
-        case LogiLed::KeyName::F6: return L"F6";
-        case LogiLed::KeyName::F7: return L"F7";
-        case LogiLed::KeyName::F8: return L"F8";
-        case LogiLed::KeyName::F9: return L"F9";
-        case LogiLed::KeyName::F10: return L"F10";
-        case LogiLed::KeyName::F11: return L"F11";
-        case LogiLed::KeyName::F12: return L"F12";
-        case LogiLed::KeyName::PRINT_SCREEN: return L"PRINT";
-        case LogiLed::KeyName::SCROLL_LOCK: return L"SCROLL";
-        case LogiLed::KeyName::PAUSE_BREAK: return L"PAUSE";
-        case LogiLed::KeyName::TILDE: return L"~";
-        case LogiLed::KeyName::ONE: return L"1";
-        case LogiLed::KeyName::TWO: return L"2";
-        case LogiLed::KeyName::THREE: return L"3";
-        case LogiLed::KeyName::FOUR: return L"4";
-        case LogiLed::KeyName::FIVE: return L"5";
-        case LogiLed::KeyName::SIX: return L"6";
-        case LogiLed::KeyName::SEVEN: return L"7";
-        case LogiLed::KeyName::EIGHT: return L"8";
-        case LogiLed::KeyName::NINE: return L"9";
-        case LogiLed::KeyName::ZERO: return L"0";
-        case LogiLed::KeyName::MINUS: return L"-";
-        case LogiLed::KeyName::EQUALS: return L"=";
-        case LogiLed::KeyName::BACKSPACE: return L"BACKSPACE";
-        case LogiLed::KeyName::INSERT: return L"INSERT";
-        case LogiLed::KeyName::HOME: return L"HOME";
-        case LogiLed::KeyName::PAGE_UP: return L"PGUP";
-        case LogiLed::KeyName::NUM_LOCK: return L"NUMLOCK";
-        case LogiLed::KeyName::NUM_SLASH: return L"NUM/";
-        case LogiLed::KeyName::NUM_ASTERISK: return L"NUM*";
-        case LogiLed::KeyName::NUM_MINUS: return L"NUM-";
-        case LogiLed::KeyName::TAB: return L"TAB";
-        case LogiLed::KeyName::Q: return L"Q";
-        case LogiLed::KeyName::W: return L"W";
-        case LogiLed::KeyName::E: return L"E";
-        case LogiLed::KeyName::R: return L"R";
-        case LogiLed::KeyName::T: return L"T";
-        case LogiLed::KeyName::Y: return L"Y";
-        case LogiLed::KeyName::U: return L"U";
-        case LogiLed::KeyName::I: return L"I";
-        case LogiLed::KeyName::O: return L"O";
-        case LogiLed::KeyName::P: return L"P";
-        case LogiLed::KeyName::OPEN_BRACKET: return L"[";
-        case LogiLed::KeyName::CLOSE_BRACKET: return L"]";
-        case LogiLed::KeyName::BACKSLASH: return L"\\";
-        case LogiLed::KeyName::KEYBOARD_DELETE: return L"DELETE";
-        case LogiLed::KeyName::END: return L"END";
-        case LogiLed::KeyName::PAGE_DOWN: return L"PGDN";
-        case LogiLed::KeyName::NUM_SEVEN: return L"NUM7";
-        case LogiLed::KeyName::NUM_EIGHT: return L"NUM8";
-        case LogiLed::KeyName::NUM_NINE: return L"NUM9";
-        case LogiLed::KeyName::NUM_PLUS: return L"NUM+";
-        case LogiLed::KeyName::CAPS_LOCK: return L"CAPS";
-        case LogiLed::KeyName::A: return L"A";
-        case LogiLed::KeyName::S: return L"S";
-        case LogiLed::KeyName::D: return L"D";
-        case LogiLed::KeyName::F: return L"F";
-        case LogiLed::KeyName::G: return L"G";
-        case LogiLed::KeyName::H: return L"H";
-        case LogiLed::KeyName::J: return L"J";
-        case LogiLed::KeyName::K: return L"K";
-        case LogiLed::KeyName::L: return L"L";
-        case LogiLed::KeyName::SEMICOLON: return L";";
-        case LogiLed::KeyName::APOSTROPHE: return L"'";
-        case LogiLed::KeyName::ENTER: return L"ENTER";
-        case LogiLed::KeyName::NUM_FOUR: return L"NUM4";
-        case LogiLed::KeyName::NUM_FIVE: return L"NUM5";
-        case LogiLed::KeyName::NUM_SIX: return L"NUM6";
-        case LogiLed::KeyName::LEFT_SHIFT: return L"LSHIFT";
-        case LogiLed::KeyName::Z: return L"Z";
-        case LogiLed::KeyName::X: return L"X";
-        case LogiLed::KeyName::C: return L"C";
-        case LogiLed::KeyName::V: return L"V";
-        case LogiLed::KeyName::B: return L"B";
-        case LogiLed::KeyName::N: return L"N";
-        case LogiLed::KeyName::M: return L"M";
-        case LogiLed::KeyName::COMMA: return L",";
-        case LogiLed::KeyName::PERIOD: return L".";
-        case LogiLed::KeyName::FORWARD_SLASH: return L"/";
-        case LogiLed::KeyName::RIGHT_SHIFT: return L"RSHIFT";
-        case LogiLed::KeyName::ARROW_UP: return L"UP";
-        case LogiLed::KeyName::NUM_ONE: return L"NUM1";
-        case LogiLed::KeyName::NUM_TWO: return L"NUM2";
-        case LogiLed::KeyName::NUM_THREE: return L"NUM3";
-        case LogiLed::KeyName::NUM_ENTER: return L"NUMENTER";
-        case LogiLed::KeyName::LEFT_CONTROL: return L"LCTRL";
-        case LogiLed::KeyName::LEFT_WINDOWS: return L"LWIN";
-        case LogiLed::KeyName::LEFT_ALT: return L"LALT";
-        case LogiLed::KeyName::SPACE: return L"SPACE";
-        case LogiLed::KeyName::RIGHT_ALT: return L"RALT";
-        case LogiLed::KeyName::RIGHT_WINDOWS: return L"RWIN";
-        case LogiLed::KeyName::APPLICATION_SELECT: return L"MENU";
-        case LogiLed::KeyName::RIGHT_CONTROL: return L"RCTRL";
-        case LogiLed::KeyName::ARROW_LEFT: return L"LEFT";
-        case LogiLed::KeyName::ARROW_DOWN: return L"DOWN";
-        case LogiLed::KeyName::ARROW_RIGHT: return L"RIGHT";
-        case LogiLed::KeyName::NUM_ZERO: return L"NUM0";
-        case LogiLed::KeyName::NUM_PERIOD: return L"NUM.";
-        case LogiLed::KeyName::G_1: return L"G1";
-        case LogiLed::KeyName::G_2: return L"G2";
-        case LogiLed::KeyName::G_3: return L"G3";
-        case LogiLed::KeyName::G_4: return L"G4";
-        case LogiLed::KeyName::G_5: return L"G5";
-        case LogiLed::KeyName::G_6: return L"G6";
-        case LogiLed::KeyName::G_7: return L"G7";
-        case LogiLed::KeyName::G_8: return L"G8";
-        case LogiLed::KeyName::G_9: return L"G9";
-        case LogiLed::KeyName::G_LOGO: return L"G_LOGO";
-        case LogiLed::KeyName::G_BADGE: return L"G_BADGE";
-        default: return L"UNKNOWN";
-    }
-}
-
-// Convert LogiLed::KeyName to config name (for INI export)
-std::wstring LogiLedKeyToConfigName(LogiLed::KeyName key) {
-    switch (key) {
-        case LogiLed::KeyName::ESC: return L"ESC";
-        case LogiLed::KeyName::F1: return L"F1";
-        case LogiLed::KeyName::F2: return L"F2";
-        case LogiLed::KeyName::F3: return L"F3";
-        case LogiLed::KeyName::F4: return L"F4";
-        case LogiLed::KeyName::F5: return L"F5";
-        case LogiLed::KeyName::F6: return L"F6";
-        case LogiLed::KeyName::F7: return L"F7";
-        case LogiLed::KeyName::F8: return L"F8";
-        case LogiLed::KeyName::F9: return L"F9";
-        case LogiLed::KeyName::F10: return L"F10";
-        case LogiLed::KeyName::F11: return L"F11";
-        case LogiLed::KeyName::F12: return L"F12";
-        case LogiLed::KeyName::PRINT_SCREEN: return L"PRINT_SCREEN";
-        case LogiLed::KeyName::SCROLL_LOCK: return L"SCROLL_LOCK";
-        case LogiLed::KeyName::PAUSE_BREAK: return L"PAUSE_BREAK";
-        case LogiLed::KeyName::TILDE: return L"TILDE";
-        case LogiLed::KeyName::ONE: return L"ONE";
-        case LogiLed::KeyName::TWO: return L"TWO";
-        case LogiLed::KeyName::THREE: return L"THREE";
-        case LogiLed::KeyName::FOUR: return L"FOUR";
-        case LogiLed::KeyName::FIVE: return L"FIVE";
-        case LogiLed::KeyName::SIX: return L"SIX";
-        case LogiLed::KeyName::SEVEN: return L"SEVEN";
-        case LogiLed::KeyName::EIGHT: return L"EIGHT";
-        case LogiLed::KeyName::NINE: return L"NINE";
-        case LogiLed::KeyName::ZERO: return L"ZERO";
-        case LogiLed::KeyName::MINUS: return L"MINUS";
-        case LogiLed::KeyName::EQUALS: return L"EQUALS";
-        case LogiLed::KeyName::BACKSPACE: return L"BACKSPACE";
-        case LogiLed::KeyName::INSERT: return L"INSERT";
-        case LogiLed::KeyName::HOME: return L"HOME";
-        case LogiLed::KeyName::PAGE_UP: return L"PAGE_UP";
-        case LogiLed::KeyName::NUM_LOCK: return L"NUM_LOCK";
-        case LogiLed::KeyName::NUM_SLASH: return L"NUM_SLASH";
-        case LogiLed::KeyName::NUM_ASTERISK: return L"NUM_ASTERISK";
-        case LogiLed::KeyName::NUM_MINUS: return L"NUM_MINUS";
-        case LogiLed::KeyName::TAB: return L"TAB";
-        case LogiLed::KeyName::Q: return L"Q";
-        case LogiLed::KeyName::W: return L"W";
-        case LogiLed::KeyName::E: return L"E";
-        case LogiLed::KeyName::R: return L"R";
-        case LogiLed::KeyName::T: return L"T";
-        case LogiLed::KeyName::Y: return L"Y";
-        case LogiLed::KeyName::U: return L"U";
-        case LogiLed::KeyName::I: return L"I";
-        case LogiLed::KeyName::O: return L"O";
-        case LogiLed::KeyName::P: return L"P";
-        case LogiLed::KeyName::OPEN_BRACKET: return L"OPEN_BRACKET";
-        case LogiLed::KeyName::CLOSE_BRACKET: return L"CLOSE_BRACKET";
-        case LogiLed::KeyName::BACKSLASH: return L"BACKSLASH";
-        case LogiLed::KeyName::KEYBOARD_DELETE: return L"DELETE";
-        case LogiLed::KeyName::END: return L"END";
-        case LogiLed::KeyName::PAGE_DOWN: return L"PAGE_DOWN";
-        case LogiLed::KeyName::NUM_SEVEN: return L"NUM_SEVEN";
-        case LogiLed::KeyName::NUM_EIGHT: return L"NUM_EIGHT";
-        case LogiLed::KeyName::NUM_NINE: return L"NUM_NINE";
-        case LogiLed::KeyName::NUM_PLUS: return L"NUM_PLUS";
-        case LogiLed::KeyName::CAPS_LOCK: return L"CAPS_LOCK";
-        case LogiLed::KeyName::A: return L"A";
-        case LogiLed::KeyName::S: return L"S";
-        case LogiLed::KeyName::D: return L"D";
-        case LogiLed::KeyName::F: return L"F";
-        case LogiLed::KeyName::G: return L"G";
-        case LogiLed::KeyName::H: return L"H";
-        case LogiLed::KeyName::J: return L"J";
-        case LogiLed::KeyName::K: return L"K";
-        case LogiLed::KeyName::L: return L"L";
-        case LogiLed::KeyName::SEMICOLON: return L"SEMICOLON";
-        case LogiLed::KeyName::APOSTROPHE: return L"APOSTROPHE";
-        case LogiLed::KeyName::ENTER: return L"ENTER";
-        case LogiLed::KeyName::NUM_FOUR: return L"NUM_FOUR";
-        case LogiLed::KeyName::NUM_FIVE: return L"NUM_FIVE";
-        case LogiLed::KeyName::NUM_SIX: return L"NUM_SIX";
-        case LogiLed::KeyName::LEFT_SHIFT: return L"LEFT_SHIFT";
-        case LogiLed::KeyName::Z: return L"Z";
-        case LogiLed::KeyName::X: return L"X";
-        case LogiLed::KeyName::C: return L"C";
-        case LogiLed::KeyName::V: return L"V";
-        case LogiLed::KeyName::B: return L"B";
-        case LogiLed::KeyName::N: return L"N";
-        case LogiLed::KeyName::M: return L"M";
-        case LogiLed::KeyName::COMMA: return L"COMMA";
-        case LogiLed::KeyName::PERIOD: return L"PERIOD";
-        case LogiLed::KeyName::FORWARD_SLASH: return L"FORWARD_SLASH";
-        case LogiLed::KeyName::RIGHT_SHIFT: return L"RIGHT_SHIFT";
-        case LogiLed::KeyName::ARROW_UP: return L"UP";
-        case LogiLed::KeyName::NUM_ONE: return L"NUM_ONE";
-        case LogiLed::KeyName::NUM_TWO: return L"NUM_TWO";
-        case LogiLed::KeyName::NUM_THREE: return L"NUM_THREE";
-        case LogiLed::KeyName::NUM_ENTER: return L"NUM_ENTER";
-        case LogiLed::KeyName::LEFT_CONTROL: return L"LEFT_CONTROL";
-        case LogiLed::KeyName::LEFT_WINDOWS: return L"LEFT_WINDOWS";
-        case LogiLed::KeyName::LEFT_ALT: return L"LEFT_ALT";
-        case LogiLed::KeyName::SPACE: return L"SPACE";
-        case LogiLed::KeyName::RIGHT_ALT: return L"RIGHT_ALT";
-        case LogiLed::KeyName::RIGHT_WINDOWS: return L"RIGHT_WINDOWS";
-        case LogiLed::KeyName::APPLICATION_SELECT: return L"APPLICATION_SELECT";
-        case LogiLed::KeyName::RIGHT_CONTROL: return L"RIGHT_CONTROL";
-        case LogiLed::KeyName::ARROW_LEFT: return L"ARROW_LEFT";
-        case LogiLed::KeyName::ARROW_DOWN: return L"ARROW_DOWN";
-        case LogiLed::KeyName::ARROW_RIGHT: return L"ARROW_RIGHT";
-        case LogiLed::KeyName::NUM_ZERO: return L"NUM_ZERO";
-        case LogiLed::KeyName::NUM_PERIOD: return L"NUM_PERIOD";
-        case LogiLed::KeyName::G_1: return L"G_1";
-        case LogiLed::KeyName::G_2: return L"G_2";
-        case LogiLed::KeyName::G_3: return L"G_3";
-        case LogiLed::KeyName::G_4: return L"G_4";
-        case LogiLed::KeyName::G_5: return L"G_5";
-        case LogiLed::KeyName::G_6: return L"G_6";
-        case LogiLed::KeyName::G_7: return L"G_7";
-        case LogiLed::KeyName::G_8: return L"G_8";
-        case LogiLed::KeyName::G_9: return L"G_9";
-        case LogiLed::KeyName::G_LOGO: return L"G_LOGO";
-        case LogiLed::KeyName::G_BADGE: return L"G_BADGE";
-        default: return L"UNKNOWN";
-    }
-}
-
-// Convert config name to LogiLed::KeyName (for INI import)
-LogiLed::KeyName ConfigNameToLogiLedKey(const std::wstring& configName) {
-    if (configName == L"ESC") return LogiLed::KeyName::ESC;
-    if (configName == L"F1") return LogiLed::KeyName::F1;
-    if (configName == L"F2") return LogiLed::KeyName::F2;
-    if (configName == L"F3") return LogiLed::KeyName::F3;
-    if (configName == L"F4") return LogiLed::KeyName::F4;
-    if (configName == L"F5") return LogiLed::KeyName::F5;
-    if (configName == L"F6") return LogiLed::KeyName::F6;
-    if (configName == L"F7") return LogiLed::KeyName::F7;
-    if (configName == L"F8") return LogiLed::KeyName::F8;
-    if (configName == L"F9") return LogiLed::KeyName::F9;
-    if (configName == L"F10") return LogiLed::KeyName::F10;
-    if (configName == L"F11") return LogiLed::KeyName::F11;
-    if (configName == L"F12") return LogiLed::KeyName::F12;
-    if (configName == L"PRINT_SCREEN") return LogiLed::KeyName::PRINT_SCREEN;
-    if (configName == L"SCROLL_LOCK") return LogiLed::KeyName::SCROLL_LOCK;
-    if (configName == L"PAUSE_BREAK") return LogiLed::KeyName::PAUSE_BREAK;
-    if (configName == L"TILDE") return LogiLed::KeyName::TILDE;
-    if (configName == L"ONE") return LogiLed::KeyName::ONE;
-    if (configName == L"TWO") return LogiLed::KeyName::TWO;
-    if (configName == L"THREE") return LogiLed::KeyName::THREE;
-    if (configName == L"FOUR") return LogiLed::KeyName::FOUR;
-    if (configName == L"FIVE") return LogiLed::KeyName::FIVE;
-    if (configName == L"SIX") return LogiLed::KeyName::SIX;
-    if (configName == L"SEVEN") return LogiLed::KeyName::SEVEN;
-    if (configName == L"EIGHT") return LogiLed::KeyName::EIGHT;
-    if (configName == L"NINE") return LogiLed::KeyName::NINE;
-    if (configName == L"ZERO") return LogiLed::KeyName::ZERO;
-    if (configName == L"MINUS") return LogiLed::KeyName::MINUS;
-    if (configName == L"EQUALS") return LogiLed::KeyName::EQUALS;
-    if (configName == L"BACKSPACE") return LogiLed::KeyName::BACKSPACE;
-    if (configName == L"INSERT") return LogiLed::KeyName::INSERT;
-    if (configName == L"HOME") return LogiLed::KeyName::HOME;
-    if (configName == L"PAGE_UP") return LogiLed::KeyName::PAGE_UP;
-    if (configName == L"NUM_LOCK") return LogiLed::KeyName::NUM_LOCK;
-    if (configName == L"NUM_SLASH") return LogiLed::KeyName::NUM_SLASH;
-    if (configName == L"NUM_ASTERISK") return LogiLed::KeyName::NUM_ASTERISK;
-    if (configName == L"NUM_MINUS") return LogiLed::KeyName::NUM_MINUS;
-    if (configName == L"TAB") return LogiLed::KeyName::TAB;
-    if (configName == L"Q") return LogiLed::KeyName::Q;
-    if (configName == L"W") return LogiLed::KeyName::W;
-    if (configName == L"E") return LogiLed::KeyName::E;
-    if (configName == L"R") return LogiLed::KeyName::R;
-    if (configName == L"T") return LogiLed::KeyName::T;
-    if (configName == L"Y") return LogiLed::KeyName::Y;
-    if (configName == L"U") return LogiLed::KeyName::U;
-    if (configName == L"I") return LogiLed::KeyName::I;
-    if (configName == L"O") return LogiLed::KeyName::O;
-    if (configName == L"P") return LogiLed::KeyName::P;
-    if (configName == L"OPEN_BRACKET") return LogiLed::KeyName::OPEN_BRACKET;
-    if (configName == L"CLOSE_BRACKET") return LogiLed::KeyName::CLOSE_BRACKET;
-    if (configName == L"BACKSLASH") return LogiLed::KeyName::BACKSLASH;
-    if (configName == L"DELETE") return LogiLed::KeyName::KEYBOARD_DELETE;
-    if (configName == L"END") return LogiLed::KeyName::END;
-    if (configName == L"PAGE_DOWN") return LogiLed::KeyName::PAGE_DOWN;
-    if (configName == L"NUM_SEVEN") return LogiLed::KeyName::NUM_SEVEN;
-    if (configName == L"NUM_EIGHT") return LogiLed::KeyName::NUM_EIGHT;
-    if (configName == L"NUM_NINE") return LogiLed::KeyName::NUM_NINE;
-    if (configName == L"NUM_PLUS") return LogiLed::KeyName::NUM_PLUS;
-    if (configName == L"CAPS_LOCK") return LogiLed::KeyName::CAPS_LOCK;
-    if (configName == L"A") return LogiLed::KeyName::A;
-    if (configName == L"S") return LogiLed::KeyName::S;
-    if (configName == L"D") return LogiLed::KeyName::D;
-    if (configName == L"F") return LogiLed::KeyName::F;
-    if (configName == L"G") return LogiLed::KeyName::G;
-    if (configName == L"H") return LogiLed::KeyName::H;
-    if (configName == L"J") return LogiLed::KeyName::J;
-    if (configName == L"K") return LogiLed::KeyName::K;
-    if (configName == L"L") return LogiLed::KeyName::L;
-    if (configName == L"SEMICOLON") return LogiLed::KeyName::SEMICOLON;
-    if (configName == L"APOSTROPHE") return LogiLed::KeyName::APOSTROPHE;
-    if (configName == L"ENTER") return LogiLed::KeyName::ENTER;
-    if (configName == L"NUM_FOUR") return LogiLed::KeyName::NUM_FOUR;
-    if (configName == L"NUM_FIVE") return LogiLed::KeyName::NUM_FIVE;
-    if (configName == L"NUM_SIX") return LogiLed::KeyName::NUM_SIX;
-    if (configName == L"LEFT_SHIFT") return LogiLed::KeyName::LEFT_SHIFT;
-    if (configName == L"Z") return LogiLed::KeyName::Z;
-    if (configName == L"X") return LogiLed::KeyName::X;
-    if (configName == L"C") return LogiLed::KeyName::C;
-    if (configName == L"V") return LogiLed::KeyName::V;
-    if (configName == L"B") return LogiLed::KeyName::B;
-    if (configName == L"N") return LogiLed::KeyName::N;
-    if (configName == L"M") return LogiLed::KeyName::M;
-    if (configName == L"COMMA") return LogiLed::KeyName::COMMA;
-    if (configName == L"PERIOD") return LogiLed::KeyName::PERIOD;
-    if (configName == L"FORWARD_SLASH") return LogiLed::KeyName::FORWARD_SLASH;
-    if (configName == L"RIGHT_SHIFT") return LogiLed::KeyName::RIGHT_SHIFT;
-    if (configName == L"ARROW_UP") return LogiLed::KeyName::ARROW_UP;
-    if (configName == L"NUM_ONE") return LogiLed::KeyName::NUM_ONE;
-    if (configName == L"NUM_TWO") return LogiLed::KeyName::NUM_TWO;
-    if (configName == L"NUM_THREE") return LogiLed::KeyName::NUM_THREE;
-    if (configName == L"NUM_ENTER") return LogiLed::KeyName::NUM_ENTER;
-    if (configName == L"LEFT_CONTROL") return LogiLed::KeyName::LEFT_CONTROL;
-    if (configName == L"LEFT_WINDOWS") return LogiLed::KeyName::LEFT_WINDOWS;
-    if (configName == L"LEFT_ALT") return LogiLed::KeyName::LEFT_ALT;
-    if (configName == L"SPACE") return LogiLed::KeyName::SPACE;
-    if (configName == L"RIGHT_ALT") return LogiLed::KeyName::RIGHT_ALT;
-    if (configName == L"RIGHT_WINDOWS") return LogiLed::KeyName::RIGHT_WINDOWS;
-    if (configName == L"APPLICATION_SELECT") return LogiLed::KeyName::APPLICATION_SELECT;
-    if (configName == L"RIGHT_CONTROL") return LogiLed::KeyName::RIGHT_CONTROL;
-    if (configName == L"ARROW_LEFT") return LogiLed::KeyName::ARROW_LEFT;
-    if (configName == L"ARROW_DOWN") return LogiLed::KeyName::ARROW_DOWN;
-    if (configName == L"ARROW_RIGHT") return LogiLed::KeyName::ARROW_RIGHT;
-    if (configName == L"NUM_ZERO") return LogiLed::KeyName::NUM_ZERO;
-    if (configName == L"NUM_PERIOD") return LogiLed::KeyName::NUM_PERIOD;
-    if (configName == L"G_1") return LogiLed::KeyName::G_1;
-    if (configName == L"G_2") return LogiLed::KeyName::G_2;
-    if (configName == L"G_3") return LogiLed::KeyName::G_3;
-    if (configName == L"G_4") return LogiLed::KeyName::G_4;
-    if (configName == L"G_5") return LogiLed::KeyName::G_5;
-    if (configName == L"G_6") return LogiLed::KeyName::G_6;
-    if (configName == L"G_7") return LogiLed::KeyName::G_7;
-    if (configName == L"G_8") return LogiLed::KeyName::G_8;
-    if (configName == L"G_9") return LogiLed::KeyName::G_9;
-    if (configName == L"G_LOGO") return LogiLed::KeyName::G_LOGO;
-    if (configName == L"G_BADGE") return LogiLed::KeyName::G_BADGE;
-    return LogiLed::KeyName::ESC; // Default fallback
-}
-
-// Format highlight keys for display in text field
-std::wstring FormatHighlightKeysForDisplay(const std::vector<LogiLed::KeyName>& keys) {
-    if (keys.empty()) {
-        return L"";
-    }
-    
-    std::wstring result;
-    for (size_t i = 0; i < keys.size(); ++i) {
-        if (i > 0) {
-            result += L" - ";
-        }
-        result += LogiLedKeyToDisplayName(keys[i]);
-    }
-    return result;
-}
-
 // Message handlers for app monitoring
 void HandleAppStarted(const std::wstring& appName) {
     std::lock_guard<std::mutex> lock(appProfilesMutex);
@@ -1182,8 +819,8 @@ void HandleAppStarted(const std::wstring& appName) {
             debugMsg << L"[DEBUG] App started: " << profile.appName << L" - isAppRunning changed to TRUE\n";
             OutputDebugStringW(debugMsg.str().c_str());
             
-            // Update the most recently activated profile
-            lastActivatedProfile = profile.appName;
+            // Enhanced: Update activation history and make this the most recent
+            UpdateActivationHistory(profile.appName);
             
             // Debug message for last activated profile change
             std::wstringstream debugMsgLast;
@@ -1263,45 +900,19 @@ void HandleAppStopped(const std::wstring& appName) {
                 debugMsg2 << L"[DEBUG] Profile " << profile.appName << L" - isProfileCurrInUse changed to FALSE (app stopped)\n";
                 OutputDebugStringW(debugMsg2.str().c_str());
                 
-                // Find the most recently activated profile that is still running
-                AppColorProfile* activeProfile = nullptr;
-                
-                // First, try to find the most recently activated profile if it's still running
-                if (!lastActivatedProfile.empty()) {
-                    for (auto& otherProfile : appColorProfiles) {
-                        if (otherProfile.isAppRunning && 
-                            otherProfile.appName == lastActivatedProfile && 
-                            otherProfile.appName != profile.appName) {
-                            activeProfile = &otherProfile;
-                            break;
-                        }
-                    }
-                }
-                
-                // If the most recently activated profile is not running, find any other running profile
-                if (!activeProfile) {
-                    for (auto& otherProfile : appColorProfiles) {
-                        if (otherProfile.isAppRunning && otherProfile.appName != profile.appName) {
-                            activeProfile = &otherProfile;
-                            // Update last activated to this profile since we're giving it control
-                            lastActivatedProfile = otherProfile.appName;
-                            
-                            // Debug message for last activated profile change
-                            std::wstringstream debugMsgLast;
-                            debugMsgLast << L"[DEBUG] Most recently activated profile updated to: " << otherProfile.appName << L" (handoff fallback)\n";
-                            OutputDebugStringW(debugMsgLast.str().c_str());
-                            break;
-                        }
-                    }
-                }
+                // Enhanced: Use the enhanced fallback logic
+                AppColorProfile* activeProfile = FindBestFallbackProfile(profile.appName);
                 
                 if (activeProfile) {
                     // Hand off lighting to the selected active profile
                     activeProfile->isProfileCurrInUse = true;
                     
+                    // Update activation history to make this the current one
+                    UpdateActivationHistory(activeProfile->appName);
+                    
                     // Debug message for isProfileCurrInUse change
                     std::wstringstream debugMsg3;
-                    debugMsg3 << L"[DEBUG] Profile " << activeProfile->appName << L" - isProfileCurrInUse changed to TRUE (handoff from " << profile.appName << L")\n";
+                    debugMsg3 << L"[DEBUG] Profile " << activeProfile->appName << L" - isProfileCurrInUse changed to TRUE (enhanced handoff from " << profile.appName << L")\n";
                     OutputDebugStringW(debugMsg3.str().c_str());
                     
                     SetDefaultColor(activeProfile->appColor);
@@ -1319,7 +930,8 @@ void HandleAppStopped(const std::wstring& appName) {
                 } else {
                     // If no monitored apps are running, restore default color and enable lock keys
                     OutputDebugStringW(L"[DEBUG] No more active profiles - restoring default colors\n");
-                    lastActivatedProfile.clear(); // Clear the last activated profile
+                    lastActivatedProfile.clear();
+                    activationHistory.clear(); // Enhanced: clear activation history
                     SetDefaultColor(defaultColor);
                     SetLockKeysColor(); // Lock keys will be enabled again (default behavior)
                 }

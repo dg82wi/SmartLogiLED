@@ -187,6 +187,8 @@ SmartLogiLED/
 ??? SmartLogiLED_Logic.h      # Logic function declarations
 ??? SmartLogiLED_Config.cpp   # Registry persistence and configuration
 ??? SmartLogiLED_Config.h     # Configuration function declarations
+??? SmartLogiLED_KeyMapping.cpp # Key mapping and conversion functions
+??? SmartLogiLED_KeyMapping.h   # Key mapping function declarations
 ??? Resource.h                # Resource definitions
 ??? framework.h               # Framework includes
 ??? LogitechLEDLib.h          # Logitech SDK header

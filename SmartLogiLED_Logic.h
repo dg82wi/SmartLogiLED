@@ -5,6 +5,7 @@
 
 #include "framework.h"
 #include "LogitechLEDLib.h"
+#include "SmartLogiLED_KeyMapping.h"
 #include <string>
 #include <vector>
 #include <functional>
@@ -63,6 +64,9 @@ AppColorProfile* GetDisplayedProfile(); // Returns nullptr if no profile is disp
 // Get the name of the most recently activated profile
 std::wstring GetLastActivatedProfileName(); // Returns empty string if none
 
+// Enhanced: Get the activation history for debugging/UI purposes
+std::vector<std::wstring> GetActivationHistory();
+
 // App profile color update functions
 void UpdateAppProfileColor(const std::wstring& appName, COLORREF newAppColor);
 void UpdateAppProfileHighlightColor(const std::wstring& appName, COLORREF newHighlightColor);
@@ -71,12 +75,7 @@ AppColorProfile* GetAppProfileByName(const std::wstring& appName);
 
 // Highlight keys management functions
 void UpdateAppProfileHighlightKeys(const std::wstring& appName, const std::vector<LogiLed::KeyName>& highlightKeys);
-std::wstring FormatHighlightKeysForDisplay(const std::vector<LogiLed::KeyName>& keys);
-LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode);
-std::wstring LogiLedKeyToDisplayName(LogiLed::KeyName key);
-std::wstring LogiLedKeyToConfigName(LogiLed::KeyName key); // For INI export
-LogiLed::KeyName ConfigNameToLogiLedKey(const std::wstring& configName); // For INI import
 void SetHighlightKeysColor(); // Apply highlight color to keys from active profile
 
 // Keyboard hook procedure
-LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
+LRESULT CALLBACK KeyboardProc(int nCode, WPARAM, LPARAM lParam);
