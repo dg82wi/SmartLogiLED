@@ -61,9 +61,6 @@ size_t GetAppProfilesCount(); // Get number of profiles
 // Get the currently displayed profile (the one controlling colors)
 AppColorProfile* GetDisplayedProfile(); // Returns nullptr if no profile is displayed
 
-// Get the name of the most recently activated profile
-std::wstring GetLastActivatedProfileName(); // Returns empty string if none
-
 // Enhanced: Get the activation history for debugging/UI purposes
 std::vector<std::wstring> GetActivationHistory();
 

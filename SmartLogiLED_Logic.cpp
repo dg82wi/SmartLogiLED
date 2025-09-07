@@ -32,7 +32,6 @@ std::mutex appProfilesMutex;
 static std::thread appMonitorThread;
 static bool appMonitoringRunning = false;
 static HWND mainWindowHandle = nullptr;
-static std::wstring lastActivatedProfile; // Track the most recently activated profile
 static std::deque<std::wstring> activationHistory; // Enhanced: Track activation history for better fallback
 static const size_t MAX_ACTIVATION_HISTORY = 10; // Maximum number of profiles to remember in history
 
@@ -53,9 +52,6 @@ void UpdateActivationHistory(const std::wstring& profileName) {
     if (activationHistory.size() > MAX_ACTIVATION_HISTORY) {
         activationHistory.pop_back();
     }
-    
-    // Update the current last activated profile
-    lastActivatedProfile = profileName;
     
     // Debug logging
     std::wstringstream debugMsg;
@@ -139,13 +135,6 @@ void CleanupActivationHistory() {
         } else {
             ++it;
         }
-    }
-    
-    // Update lastActivatedProfile to match the front of history
-    if (!activationHistory.empty()) {
-        lastActivatedProfile = activationHistory.front();
-    } else {
-        lastActivatedProfile.clear();
     }
 }
 
@@ -628,8 +617,6 @@ void CheckRunningAppsAndUpdateColors() {
     
     if (!foundActiveApp) {
         OutputDebugStringW(L"[DEBUG] CheckRunningAppsAndUpdateColors() - No active profiles found, using default colors\n");
-        lastActivatedProfile.clear();
-        activationHistory.clear(); // Enhanced: clear activation history when no profiles are active
     }
     
     OutputDebugStringW(L"[DEBUG] CheckRunningAppsAndUpdateColors() - Scan complete\n");
@@ -657,12 +644,6 @@ AppColorProfile* GetDisplayedProfile() {
 // Set main window handle for UI updates
 void SetMainWindowHandle(HWND hWnd) {
     mainWindowHandle = hWnd;
-}
-
-// Get the name of the most recently activated profile
-std::wstring GetLastActivatedProfileName() {
-    std::lock_guard<std::mutex> lock(appProfilesMutex);
-    return lastActivatedProfile;
 }
 
 // Enhanced: Get the activation history for debugging/UI purposes
@@ -930,7 +911,6 @@ void HandleAppStopped(const std::wstring& appName) {
                 } else {
                     // If no monitored apps are running, restore default color and enable lock keys
                     OutputDebugStringW(L"[DEBUG] No more active profiles - restoring default colors\n");
-                    lastActivatedProfile.clear();
                     activationHistory.clear(); // Enhanced: clear activation history
                     SetDefaultColor(defaultColor);
                     SetLockKeysColor(); // Lock keys will be enabled again (default behavior)
