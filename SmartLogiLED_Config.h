@@ -3,9 +3,7 @@
 #include <string>
 #include <vector>
 #include "LogitechLEDLib.h"
-
-// Forward declaration
-struct AppColorProfile;
+#include "SmartLogiLED_Types.h"
 
 // Registry constants
 #define REGISTRY_KEY L"SOFTWARE\\SmartLogiLED"

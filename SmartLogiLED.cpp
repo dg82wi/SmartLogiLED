@@ -11,8 +11,10 @@
 
 #include "framework.h"
 #include "SmartLogiLED.h"
-#include "SmartLogiLED_Logic.h"
 #include "SmartLogiLED_Config.h"
+#include "SmartLogiLED_LockKeys.h"
+#include "SmartLogiLED_AppProfiles.h"
+#include "SmartLogiLED_KeyMapping.h"
 #include "LogitechLEDLib.h"
 #include "Resource.h"
 #include <shellapi.h>

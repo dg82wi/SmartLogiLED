@@ -27,13 +27,19 @@
     <ClInclude Include="SmartLogiLED.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
-    <ClInclude Include="SmartLogiLED_Logic.h">
-      <Filter>Headerdateien</Filter>
-    </ClInclude>
     <ClInclude Include="SmartLogiLED_Config.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
     <ClInclude Include="LogitechLEDLib.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="SmartLogiLED_KeyMapping.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="SmartLogiLED_LockKeys.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="SmartLogiLED_AppProfiles.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>
@@ -41,10 +47,16 @@
     <ClCompile Include="SmartLogiLED.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
-    <ClCompile Include="SmartLogiLED_Logic.cpp">
+    <ClCompile Include="SmartLogiLED_Config.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
-    <ClCompile Include="SmartLogiLED_Config.cpp">
+    <ClCompile Include="SmartLogiLED_KeyMapping.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="SmartLogiLED_LockKeys.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="SmartLogiLED_AppProfiles.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
   </ItemGroup>
@@ -65,5 +77,6 @@
     <None Include="README.md" />
     <None Include="APP_MONITORING_USAGE.md" />
     <None Include="LICENSE" />
+    <None Include="CHANGELOG.md" />
   </ItemGroup>
 </Project>
