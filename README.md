@@ -287,7 +287,7 @@ struct AppColorProfile {
 
 ## Version History
 
-### 🚀 v3.0.0 (Current - January 2025)
+### 🚀 v3.0.0 - Current Release
 **Major Feature Release - Complete Profile Management Overhaul**
 
 #### ✨ New Features
@@ -311,7 +311,7 @@ struct AppColorProfile {
 
 ---
 
-### v2.2.0 (December 2024)
+### v2.2.0
 **Multi-Application Handling Enhancement**
 
 #### 🔧 Improvements
@@ -323,7 +323,7 @@ struct AppColorProfile {
 
 ---
 
-### v2.1.0 (November 2024)
+### v2.1.0
 **Stability and Multi-App Improvements**
 
 #### 🐛 Bug Fixes
@@ -338,7 +338,7 @@ struct AppColorProfile {
 
 ---
 
-### v2.0.0 (October 2024)
+### v2.0.0
 **Application Monitoring Introduction**
 
 #### ✨ New Features
@@ -354,7 +354,7 @@ struct AppColorProfile {
 
 ---
 
-### v1.0.0 (September 2024)
+### v1.0.0
 **Initial Release**
 
 #### ✨ Core Features
