@@ -8,13 +8,13 @@
 //
 // SmartLogiLED.cpp : Defines the entry point for the application.
 
-
 #include "framework.h"
 #include "SmartLogiLED.h"
 #include "SmartLogiLED_Config.h"
 #include "SmartLogiLED_LockKeys.h"
 #include "SmartLogiLED_AppProfiles.h"
 #include "SmartLogiLED_KeyMapping.h"
+#include "SmartLogiLED_Version.h"
 #include "LogitechLEDLib.h"
 #include "Resource.h"
 #include <shellapi.h>
@@ -40,6 +40,23 @@ COLORREF capsLockColor = RGB(0, 179, 0); // Caps Lock color
 COLORREF scrollLockColor = RGB(0, 179, 0); // Scroll Lock color
 COLORREF numLockColor = RGB(0, 179, 0); // Num Lock color
 COLORREF defaultColor = RGB(0, 89, 89); // default color used for all other keys and lock keys when off
+
+// Version information functions
+std::wstring GetApplicationVersion() {
+    return SMARTLOGILED_VERSION_STRING;
+}
+
+std::wstring GetApplicationFullVersion() {
+    return SMARTLOGILED_VERSION_FULL;
+}
+
+std::wstring GetApplicationName() {
+    return SMARTLOGILED_PRODUCT_NAME;
+}
+
+DWORD GetVersionNumber() {
+    return SMARTLOGILED_VERSION_NUMBER;
+}
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -138,7 +155,13 @@ void CreateTrayIcon(HWND hWnd) {
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     nid.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_SMARTLOGILED));
     nid.uCallbackMessage = WM_APP + 1; // Custom message
-    wcscpy_s(nid.szTip, L"SmartLogiLED");
+    
+    // Create tooltip with version information
+    std::wstring tooltip = SMARTLOGILED_PRODUCT_NAME;
+    tooltip += L" v";
+    tooltip += SMARTLOGILED_VERSION_STRING;
+    wcscpy_s(nid.szTip, tooltip.c_str());
+    
     Shell_NotifyIcon(NIM_ADD, &nid);
 }
 

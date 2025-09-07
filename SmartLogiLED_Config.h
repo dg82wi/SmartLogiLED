@@ -4,15 +4,16 @@
 #include <vector>
 #include "LogitechLEDLib.h"
 #include "SmartLogiLED_Types.h"
+#include "SmartLogiLED_Version.h"
 
-// Registry constants
-#define REGISTRY_KEY L"SOFTWARE\\SmartLogiLED"
+// Registry constants (now using centralized constants from Version.h)
+#define REGISTRY_KEY SMARTLOGILED_REGISTRY_ROOT
 #define REGISTRY_VALUE_START_MINIMIZED L"StartMinimized"
 #define REGISTRY_VALUE_NUMLOCK_COLOR L"NumLockColor"
 #define REGISTRY_VALUE_CAPSLOCK_COLOR L"CapsLockColor"
 #define REGISTRY_VALUE_SCROLLLOCK_COLOR L"ScrollLockColor"
 #define REGISTRY_VALUE_DEFAULT_COLOR L"DefaultColor"
-#define REGISTRY_KEY_APP_PROFILES_SUBKEY L"SOFTWARE\\SmartLogiLED\\AppProfiles"
+#define REGISTRY_KEY_APP_PROFILES_SUBKEY SMARTLOGILED_REGISTRY_PROFILES
 #define REGISTRY_VALUE_APP_COLOR L"AppColor"
 #define REGISTRY_VALUE_APP_HIGHLIGHT_COLOR L"AppHighlightColor"
 #define REGISTRY_VALUE_LOCK_KEYS_ENABLED L"LockKeysEnabled"

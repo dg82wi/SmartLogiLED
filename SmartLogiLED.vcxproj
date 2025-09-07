@@ -139,6 +139,7 @@
     <ClInclude Include="SmartLogiLED_Config.h" />
     <ClInclude Include="SmartLogiLED_KeyMapping.h" />
     <ClInclude Include="SmartLogiLED_LockKeys.h" />
+    <ClInclude Include="SmartLogiLED_Version.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
