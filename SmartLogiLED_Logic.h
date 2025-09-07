@@ -12,9 +12,10 @@
 
 // Custom Windows messages for UI and thread communication
 #define WM_UPDATE_PROFILE_COMBO (WM_USER + 100)
-#define WM_APP_STARTED (WM_USER + 101)
-#define WM_APP_STOPPED (WM_USER + 102)
-#define WM_PROCESS_LIST_UPDATE (WM_USER + 103)
+#define WM_LOCK_KEY_PRESSED (WM_USER + 101)
+#define WM_APP_STARTED (WM_USER + 102)
+#define WM_APP_STOPPED (WM_USER + 103)
+#define WM_PROCESS_LIST_UPDATE (WM_USER + 104)
 
 // App monitoring structure
 struct AppColorProfile {
@@ -47,12 +48,14 @@ void AddAppColorProfile(const std::wstring& appName, COLORREF color, bool lockKe
 void RemoveAppColorProfile(const std::wstring& appName);
 void CheckRunningAppsAndUpdateColors();
 bool IsLockKeysFeatureEnabled(); // Check if lock keys feature should be enabled based on current active profile
+bool IsLockKeysFeatureEnabledUnsafe(); // Check if lock keys feature is enabled (assumes mutex already held)
 void SetMainWindowHandle(HWND hWnd); // Set main window handle for UI updates
 std::vector<std::wstring> GetVisibleRunningProcesses(); // Get list of currently running visible processes
 
 // Message handlers for app monitoring
 void HandleAppStarted(const std::wstring& appName);
 void HandleAppStopped(const std::wstring& appName);
+void HandleLockKeyPressed(DWORD vkCode); // Handle lock key press in main thread
 
 // App profile access functions
 std::vector<AppColorProfile> GetAppColorProfilesCopy(); // Thread-safe copy
@@ -76,3 +79,9 @@ void SetHighlightKeysColor(); // Apply highlight color to keys from active profi
 
 // Keyboard hook procedure
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM, LPARAM lParam);
+
+// Hook management functions
+void UpdateKeyboardHookStateUnsafe(); // Update hook state (assumes mutex already held)
+void EnableKeyboardHook(); // Enable the keyboard hook
+void DisableKeyboardHook(); // Disable the keyboard hook
+bool IsKeyboardHookEnabled(); // Check if keyboard hook is currently enabled

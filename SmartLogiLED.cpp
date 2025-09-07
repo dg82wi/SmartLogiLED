@@ -479,7 +479,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             if (hBrushAppHighlightColor) DeleteObject(hBrushAppHighlightColor);
             RemoveTrayIcon();
             CleanupAppMonitoring(); // Cleanup app monitoring before other cleanup
-            UnhookWindowsHookEx(keyboardHook);
+            DisableKeyboardHook(); // Use managed hook cleanup
             LogiLedRestoreLighting();
             LogiLedShutdown();
             PostQuitMessage(0);
@@ -506,6 +506,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                 RemoveTrayIcon();
             } else if (lParam == WM_RBUTTONUP) {
                 ShowTrayContextMenu(hWnd);
+            }
+            break;
+        case WM_LOCK_KEY_PRESSED: // Custom message for lock key pressed
+            {
+                DWORD vkCode = (DWORD)wParam;
+                HandleLockKeyPressed(vkCode);
             }
             break;
         case WM_UPDATE_PROFILE_COMBO: // Custom message to update profile combo box
@@ -672,8 +678,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Initialize app monitoring
    InitializeAppMonitoring();
 
-   // Set up keyboard hook
-   keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
+   // Initialize keyboard hook based on lock keys feature status
+   UpdateKeyboardHookStateUnsafe();
    
    return TRUE;
 }

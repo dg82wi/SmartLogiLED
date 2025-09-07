@@ -26,6 +26,12 @@ extern COLORREF numLockColor;
 extern COLORREF defaultColor;
 extern HHOOK keyboardHook;
 
+// Custom window message for lock key press handling
+#define WM_LOCK_KEY_PRESSED (WM_USER + 101)
+
+// Hook management variables
+static bool isKeyboardHookEnabled = false;
+
 // App monitoring variables
 std::vector<AppColorProfile> appColorProfiles;
 std::mutex appProfilesMutex;
@@ -253,76 +259,134 @@ void ShowColorPicker(HWND hWnd, COLORREF& color, LogiLed::KeyName key) {
     }
 }
 
-// Keyboard hook procedure to update lock key colors on key press
+// Keyboard hook procedure to handle lock key presses
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode >= 0 && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)) {
         KBDLLHOOKSTRUCT* pKeyStruct = (KBDLLHOOKSTRUCT*)lParam;
 
-        // Determine the color to use for "off" state - app color if profile is active, otherwise default color
-        COLORREF offStateColor = defaultColor;
-        {
-            std::lock_guard<std::mutex> lock(appProfilesMutex);
-            for (const auto& profile : appColorProfiles) {
-                if (profile.isProfileCurrInUse) {
-                    offStateColor = profile.appColor;
-                    break;
-                }
-            }
-        }
-
-        // Check if lock key was pressed and if lock keys feature is enabled
+        // Check if lock key was pressed
         if ((pKeyStruct->vkCode == VK_NUMLOCK) || (pKeyStruct->vkCode == VK_SCROLL) || (pKeyStruct->vkCode == VK_CAPITAL)) {
-            // If lock keys feature is disabled, just set the key to default color
-            if (!IsLockKeysFeatureEnabled()) {
-                LogiLed::KeyName pressedKey;
-                switch (pKeyStruct->vkCode) {
-                case VK_NUMLOCK:
-                    pressedKey = LogiLed::KeyName::NUM_LOCK;
-                    break;
-                case VK_SCROLL:
-                    pressedKey = LogiLed::KeyName::SCROLL_LOCK;
-                    break;
-                case VK_CAPITAL:
-                    pressedKey = LogiLed::KeyName::CAPS_LOCK;
-                    break;
-                }
-                SetKeyColor(pressedKey, offStateColor);
-                return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
+            // Send message to main window to handle lock key press
+            if (mainWindowHandle) {
+                PostMessage(mainWindowHandle, WM_LOCK_KEY_PRESSED, pKeyStruct->vkCode, 0);
             }
-
-            SHORT keyState;
-            LogiLed::KeyName pressedKey;
-            COLORREF colorToSet;
-            
-
-
-            // The lock key state is updated only after this callback, so current state off means the key will be turned on
-            switch (pKeyStruct->vkCode) {
-            case VK_NUMLOCK:
-                keyState = GetKeyState(VK_NUMLOCK) & 0x0001;
-                pressedKey = LogiLed::KeyName::NUM_LOCK;
-                colorToSet = (keyState == 0x0000) ? numLockColor : offStateColor;
-                break;
-            case VK_SCROLL:
-                keyState = GetKeyState(VK_SCROLL) & 0x0001;
-                pressedKey = LogiLed::KeyName::SCROLL_LOCK;
-                colorToSet = (keyState == 0x0000) ? scrollLockColor : offStateColor;
-                break;
-            case VK_CAPITAL:
-                keyState = GetKeyState(VK_CAPITAL) & 0x0001;
-                pressedKey = LogiLed::KeyName::CAPS_LOCK;
-                colorToSet = (keyState == 0x0000) ? capsLockColor : offStateColor;
-                break;
-            }
-
-            SetKeyColor(pressedKey, colorToSet);
-            
-            // Also reapply highlight keys in case the pressed key is in the highlight list
-            SetHighlightKeysColor();
         }
     }
 
     return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
+}
+
+// Handle lock key press in main thread
+void HandleLockKeyPressed(DWORD vkCode) {
+    // Determine the color to use for "off" state - app color if profile is active, otherwise default color
+    COLORREF offStateColor = defaultColor;
+    {
+        std::lock_guard<std::mutex> lock(appProfilesMutex);
+        for (const auto& profile : appColorProfiles) {
+            if (profile.isProfileCurrInUse) {
+                offStateColor = profile.appColor;
+                break;
+            }
+        }
+    }
+
+    // Check if lock keys feature is enabled
+    if (!IsLockKeysFeatureEnabled()) {
+        LogiLed::KeyName pressedKey;
+        switch (vkCode) {
+        case VK_NUMLOCK:
+            pressedKey = LogiLed::KeyName::NUM_LOCK;
+            break;
+        case VK_SCROLL:
+            pressedKey = LogiLed::KeyName::SCROLL_LOCK;
+            break;
+        case VK_CAPITAL:
+            pressedKey = LogiLed::KeyName::CAPS_LOCK;
+            break;
+        default:
+            return; // Unknown key
+        }
+        SetKeyColor(pressedKey, offStateColor);
+        return;
+    }
+
+    SHORT keyState;
+    LogiLed::KeyName pressedKey;
+    COLORREF colorToSet;
+
+    // The lock key state is updated only after this callback, so current state off means the key will be turned on
+    switch (vkCode) {
+    case VK_NUMLOCK:
+        keyState = GetKeyState(VK_NUMLOCK) & 0x0001;
+        pressedKey = LogiLed::KeyName::NUM_LOCK;
+        colorToSet = (keyState == 0x0000) ? numLockColor : offStateColor;
+        break;
+    case VK_SCROLL:
+        keyState = GetKeyState(VK_SCROLL) & 0x0001;
+        pressedKey = LogiLed::KeyName::SCROLL_LOCK;
+        colorToSet = (keyState == 0x0000) ? scrollLockColor : offStateColor;
+        break;
+    case VK_CAPITAL:
+        keyState = GetKeyState(VK_CAPITAL) & 0x0001;
+        pressedKey = LogiLed::KeyName::CAPS_LOCK;
+        colorToSet = (keyState == 0x0000) ? capsLockColor : offStateColor;
+        break;
+    default:
+        return; // Unknown key
+    }
+
+    SetKeyColor(pressedKey, colorToSet);
+    
+    // Also reapply highlight keys in case the pressed key is in the highlight list
+    SetHighlightKeysColor();
+}
+
+// Hook management functions
+
+// Check if keyboard hook is currently enabled
+bool IsKeyboardHookEnabled() {
+    return isKeyboardHookEnabled;
+}
+
+// Enable the keyboard hook
+void EnableKeyboardHook() {
+    if (!isKeyboardHookEnabled && !keyboardHook) {
+        keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(nullptr), 0);
+        if (keyboardHook) {
+            isKeyboardHookEnabled = true;
+            OutputDebugStringW(L"[DEBUG] Keyboard hook enabled\n");
+        } else {
+            OutputDebugStringW(L"[DEBUG] Failed to enable keyboard hook\n");
+        }
+    }
+}
+
+// Disable the keyboard hook
+void DisableKeyboardHook() {
+    if (isKeyboardHookEnabled && keyboardHook) {
+        if (UnhookWindowsHookEx(keyboardHook)) {
+            keyboardHook = nullptr;
+            isKeyboardHookEnabled = false;
+            OutputDebugStringW(L"[DEBUG] Keyboard hook disabled\n");
+        } else {
+            OutputDebugStringW(L"[DEBUG] Failed to disable keyboard hook\n");
+        }
+    }
+}
+
+// Update hook state based on lock keys feature (unsafe version - assumes mutex already held)
+void UpdateKeyboardHookStateUnsafe() {
+    bool lockKeysEnabled = IsLockKeysFeatureEnabledUnsafe();
+    
+    if (lockKeysEnabled && !isKeyboardHookEnabled) {
+        // Lock keys feature is enabled but hook is disabled - enable it
+        EnableKeyboardHook();
+        OutputDebugStringW(L"[DEBUG] Keyboard hook enabled due to lock keys feature\n");
+    } else if (!lockKeysEnabled && isKeyboardHookEnabled) {
+        // Lock keys feature is disabled but hook is enabled - disable it
+        DisableKeyboardHook();
+        OutputDebugStringW(L"[DEBUG] Keyboard hook disabled due to lock keys feature being disabled\n");
+    }
 }
 
 // App monitoring functions
@@ -532,9 +596,10 @@ void RemoveAppColorProfile(const std::wstring& appName) {
     CleanupActivationHistory();
 }
 
-// Check if lock keys feature should be enabled based on current displayed profile
-bool IsLockKeysFeatureEnabled() {
-    std::lock_guard<std::mutex> lock(appProfilesMutex);
+
+// Internal version that assumes mutex is already locked
+bool IsLockKeysFeatureEnabledUnsafe() {
+    // Note: This function assumes the appProfilesMutex is already locked by the caller
     
     // Check if any profile is currently displayed (controlling colors)
     for (const auto& profile : appColorProfiles) {
@@ -546,6 +611,14 @@ bool IsLockKeysFeatureEnabled() {
     // If no profile is displayed, lock keys feature is always enabled (default behavior)
     return true;
 }
+
+// Check if lock keys feature should be enabled based on current displayed profile
+bool IsLockKeysFeatureEnabled() {
+    std::lock_guard<std::mutex> lock(appProfilesMutex);
+
+    return IsLockKeysFeatureEnabledUnsafe();
+}
+
 
 // Check running apps and update colors immediately
 void CheckRunningAppsAndUpdateColors() {
@@ -613,6 +686,9 @@ void CheckRunningAppsAndUpdateColors() {
         
         // Apply highlight keys color
         SetHighlightKeysColor();
+        
+        // Update keyboard hook state based on current profile's lock keys setting (unsafe - mutex already held)
+        UpdateKeyboardHookStateUnsafe();
     }
     
     if (!foundActiveApp) {
@@ -727,6 +803,9 @@ void UpdateAppProfileLockKeysEnabled(const std::wstring& appName, bool lockKeysE
                 
                 // Reapply highlight keys (this will properly handle lock keys based on new setting)
                 SetHighlightKeysColor();
+                
+                // Update keyboard hook state based on new lock keys setting (unsafe - mutex already held)
+                UpdateKeyboardHookStateUnsafe();
             }
             break;
         }
@@ -844,6 +923,9 @@ void HandleAppStarted(const std::wstring& appName) {
                 // Apply highlight keys color
                 SetHighlightKeysColor();
                 
+                // Update keyboard hook state based on new profile's lock keys setting
+                UpdateKeyboardHookStateUnsafe();
+                
                 // Notify UI to update combo box
                 if (mainWindowHandle) {
                     PostMessage(mainWindowHandle, WM_UPDATE_PROFILE_COMBO, 0, 0);
@@ -904,6 +986,9 @@ void HandleAppStopped(const std::wstring& appName) {
                     // Apply highlight keys color
                     SetHighlightKeysColor();
                     
+                    // Update keyboard hook state based on new active profile's lock keys setting (unsafe - mutex already held)
+                    UpdateKeyboardHookStateUnsafe();
+                    
                     // Notify UI to update combo box
                     if (mainWindowHandle) {
                         PostMessage(mainWindowHandle, WM_UPDATE_PROFILE_COMBO, 0, 0);
@@ -914,6 +999,9 @@ void HandleAppStopped(const std::wstring& appName) {
                     activationHistory.clear(); // Enhanced: clear activation history
                     SetDefaultColor(defaultColor);
                     SetLockKeysColor(); // Lock keys will be enabled again (default behavior)
+                    
+                    // Update keyboard hook state (should be enabled for default behavior) (unsafe - mutex already held)
+                    UpdateKeyboardHookStateUnsafe();
                 }
                 
                 // Notify UI to update combo box
