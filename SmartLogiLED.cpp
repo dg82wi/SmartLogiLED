@@ -515,6 +515,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             UpdateAppProfileColorBoxes(hWnd);
             UpdateLockKeysCheckbox(hWnd);
             break;
+        case WM_APP_STARTED: // Custom message for app started
+            {
+                // Get app name from message parameter (allocated on heap by thread)
+                std::wstring* appName = reinterpret_cast<std::wstring*>(lParam);
+                if (appName) {
+                    HandleAppStarted(*appName);
+                    delete appName; // Clean up heap allocated string
+                }
+            }
+            break;
+        case WM_APP_STOPPED: // Custom message for app stopped
+            {
+                // Get app name from message parameter (allocated on heap by thread)
+                std::wstring* appName = reinterpret_cast<std::wstring*>(lParam);
+                if (appName) {
+                    HandleAppStopped(*appName);
+                    delete appName; // Clean up heap allocated string
+                }
+            }
+            break;
         case WM_INITMENUPOPUP:
             // Update menu checkmarks when menu is about to be displayed
             {

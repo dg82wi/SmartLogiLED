@@ -132,6 +132,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="framework.h" />
+    <ClInclude Include="LogitechLEDLib.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="SmartLogiLED.h" />
     <ClInclude Include="SmartLogiLED_Config.h" />

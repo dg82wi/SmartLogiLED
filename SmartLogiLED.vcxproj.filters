@@ -33,6 +33,9 @@
     <ClInclude Include="SmartLogiLED_Config.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="LogitechLEDLib.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SmartLogiLED.cpp">

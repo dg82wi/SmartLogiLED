@@ -330,74 +330,11 @@ void AppMonitorThreadProc() {
         for (const auto& app : currentRunningApps) {
             // If app wasn't running before but is running now
             if (std::find(lastRunningApps.begin(), lastRunningApps.end(), app) == lastRunningApps.end()) {
-                // Check if this app has a color profile
-                std::lock_guard<std::mutex> lock(appProfilesMutex);
-                for (auto& profile : appColorProfiles) {
-                    std::wstring lowerAppName = profile.appName;
-                    std::wstring lowerCurrentApp = app;
-                    std::transform(lowerAppName.begin(), lowerAppName.end(), lowerAppName.begin(), ::towlower);
-                    std::transform(lowerCurrentApp.begin(), lowerCurrentApp.end(), lowerCurrentApp.begin(), ::towlower);
-                    
-                    if (lowerAppName == lowerCurrentApp && !profile.isAppRunning) {
-                        // App started - activate its color profile
-                        profile.isAppRunning = true;
-                        
-                        // Debug message for isAppRunning change
-                        std::wstringstream debugMsg;
-                        debugMsg << L"[DEBUG] App started: " << profile.appName << L" - isAppRunning changed to TRUE\n";
-                        OutputDebugStringW(debugMsg.str().c_str());
-                        
-                        // Update the most recently activated profile
-                        lastActivatedProfile = profile.appName;
-                        
-                        // Debug message for last activated profile change
-                        std::wstringstream debugMsgLast;
-                        debugMsgLast << L"[DEBUG] Most recently activated profile updated to: " << profile.appName << L"\n";
-                        OutputDebugStringW(debugMsgLast.str().c_str());
-                        
-                        // Check if this should be the displayed profile (most recently activated takes precedence)
-                        bool shouldDisplay = true;
-                        for (const auto& otherProfile : appColorProfiles) {
-                            if (otherProfile.isProfileCurrInUse && otherProfile.appName != profile.appName) {
-                                shouldDisplay = true; // Always take control as the most recently activated
-                                break;
-                            }
-                        }
-                        
-                        if (shouldDisplay) {
-                            // Clear all other displayed flags
-                            for (auto& p : appColorProfiles) {
-                                if (p.isProfileCurrInUse && p.appName != profile.appName) {
-                                    p.isProfileCurrInUse = false;
-                                    // Debug message for isProfileCurrInUse change
-                                    std::wstringstream debugMsg2;
-                                    debugMsg2 << L"[DEBUG] Profile " << p.appName << L" - isProfileCurrInUse changed to FALSE (handoff to most recent)\n";
-                                    OutputDebugStringW(debugMsg2.str().c_str());
-                                }
-                            }
-                            // Set this profile as displayed
-                            profile.isProfileCurrInUse = true;
-                            
-                            // Debug message for isProfilecurrentlyInUse change
-                            std::wstringstream debugMsg3;
-                            debugMsg3 << L"[DEBUG] Profile " << profile.appName << L" - isProfileCurrInUse changed to TRUE (most recently activated)\n";
-                            OutputDebugStringW(debugMsg3.str().c_str());
-                            
-                            SetDefaultColor(profile.appColor);
-                            if (profile.lockKeysEnabled) {
-                                SetLockKeysColor(); // Update lock key colors based on profile's lock keys setting
-                            }
-                            
-                            // Apply highlight keys color
-                            SetHighlightKeysColor();
-                            
-                            // Notify UI to update combo box
-                            if (mainWindowHandle) {
-                                PostMessage(mainWindowHandle, WM_UPDATE_PROFILE_COMBO, 0, 0);
-                            }
-                        }
-                        break;
-                    }
+                // Send message to main window about app start
+                if (mainWindowHandle) {
+                    // Copy string to heap for message passing
+                    std::wstring* appName = new std::wstring(app);
+                    PostMessage(mainWindowHandle, WM_APP_STARTED, 0, reinterpret_cast<LPARAM>(appName));
                 }
             }
         }
@@ -406,99 +343,11 @@ void AppMonitorThreadProc() {
         for (const auto& app : lastRunningApps) {
             // If app was running before but is not running now
             if (std::find(currentRunningApps.begin(), currentRunningApps.end(), app) == currentRunningApps.end()) {
-                std::lock_guard<std::mutex> lock(appProfilesMutex);
-                for (auto& profile : appColorProfiles) {
-                    std::wstring lowerAppName = profile.appName;
-                    std::wstring lowerStoppedApp = app;
-                    std::transform(lowerAppName.begin(), lowerAppName.end(), lowerAppName.begin(), ::towlower);
-                    std::transform(lowerStoppedApp.begin(), lowerStoppedApp.end(), lowerStoppedApp.begin(), ::towlower);
-                    
-                    if (lowerAppName == lowerStoppedApp && profile.isAppRunning) {
-                        // App stopped - deactivate its color profile
-                        profile.isAppRunning = false;
-                        
-                        // Debug message for isAppRunning change
-                        std::wstringstream debugMsg;
-                        debugMsg << L"[DEBUG] App stopped: " << profile.appName << L" - isAppRunning changed to FALSE\n";
-                        OutputDebugStringW(debugMsg.str().c_str());
-                        
-                        // If this was the displayed profile, find a replacement or clear display
-                        if (profile.isProfileCurrInUse) {
-                            profile.isProfileCurrInUse = false;
-                            
-                            // Debug message for isProfileCurrInUse change
-                            std::wstringstream debugMsg2;
-                            debugMsg2 << L"[DEBUG] Profile " << profile.appName << L" - isProfileCurrInUse changed to FALSE (app stopped)\n";
-                            OutputDebugStringW(debugMsg2.str().c_str());
-                            
-                            // Find the most recently activated profile that is still running
-                            AppColorProfile* activeProfile = nullptr;
-                            
-                            // First, try to find the most recently activated profile if it's still running
-                            if (!lastActivatedProfile.empty()) {
-                                for (auto& otherProfile : appColorProfiles) {
-                                    if (otherProfile.isAppRunning && 
-                                        otherProfile.appName == lastActivatedProfile && 
-                                        otherProfile.appName != profile.appName) {
-                                        activeProfile = &otherProfile;
-                                        break;
-                                    }
-                                }
-                            }
-                            
-                            // If the most recently activated profile is not running, find any other running profile
-                            if (!activeProfile) {
-                                for (auto& otherProfile : appColorProfiles) {
-                                    if (otherProfile.isAppRunning && otherProfile.appName != profile.appName) {
-                                        activeProfile = &otherProfile;
-                                        // Update last activated to this profile since we're giving it control
-                                        lastActivatedProfile = otherProfile.appName;
-                                        
-                                        // Debug message for last activated profile change
-                                        std::wstringstream debugMsgLast;
-                                        debugMsgLast << L"[DEBUG] Most recently activated profile updated to: " << otherProfile.appName << L" (handoff fallback)\n";
-                                        OutputDebugStringW(debugMsgLast.str().c_str());
-                                        break;
-                                    }
-                                }
-                            }
-                            
-                            if (activeProfile) {
-                                // Hand off lighting to the selected active profile
-                                activeProfile->isProfileCurrInUse = true;
-                                
-                                // Debug message for isProfileCurrInUse change
-                                std::wstringstream debugMsg3;
-                                debugMsg3 << L"[DEBUG] Profile " << activeProfile->appName << L" - isProfileCurrInUse changed to TRUE (handoff from " << profile.appName << L")\n";
-                                OutputDebugStringW(debugMsg3.str().c_str());
-                                
-                                SetDefaultColor(activeProfile->appColor);
-                                if (activeProfile->lockKeysEnabled) {
-                                    SetLockKeysColor();
-                                }
-                                
-                                // Apply highlight keys color
-                                SetHighlightKeysColor();
-                                
-                                // Notify UI to update combo box
-                                if (mainWindowHandle) {
-                                    PostMessage(mainWindowHandle, WM_UPDATE_PROFILE_COMBO, 0, 0);
-                                }
-                            } else {
-                                // If no monitored apps are running, restore default color and enable lock keys
-                                OutputDebugStringW(L"[DEBUG] No more active profiles - restoring default colors\n");
-                                lastActivatedProfile.clear(); // Clear the last activated profile
-                                SetDefaultColor(defaultColor);
-                                SetLockKeysColor(); // Lock keys will be enabled again (default behavior)
-                            }
-                            
-                            // Notify UI to update combo box
-                            if (mainWindowHandle) {
-                                PostMessage(mainWindowHandle, WM_UPDATE_PROFILE_COMBO, 0, 0);
-                            }
-                        }
-                        break;
-                    }
+                // Send message to main window about app stop
+                if (mainWindowHandle) {
+                    // Copy string to heap for message passing
+                    std::wstring* appName = new std::wstring(app);
+                    PostMessage(mainWindowHandle, WM_APP_STOPPED, 0, reinterpret_cast<LPARAM>(appName));
                 }
             }
         }
@@ -604,7 +453,6 @@ void CheckRunningAppsAndUpdateColors() {
     }
     
     bool foundActiveApp = false;
-    COLORREF activeColor = defaultColor;
     AppColorProfile* selectedProfile = nullptr;
     
     // Update all profiles' running status first
@@ -622,33 +470,19 @@ void CheckRunningAppsAndUpdateColors() {
         }
     }
     
-    // Find the profile to activate (prioritize most recently activated)
-    if (!lastActivatedProfile.empty()) {
-        // First, try to find the most recently activated profile if it's running
-        for (auto& profile : appColorProfiles) {
-            if (profile.isAppRunning && profile.appName == lastActivatedProfile) {
-                selectedProfile = &profile;
-                foundActiveApp = true;
-                break;
-            }
-        }
-    }
-    
-    // If the most recently activated profile is not running, find the first running one
-    if (!foundActiveApp) {
-        for (auto& profile : appColorProfiles) {
-            if (profile.isAppRunning) {
-                selectedProfile = &profile;
-                foundActiveApp = true;
-                // Update last activated to this profile since we're giving it control
-                lastActivatedProfile = profile.appName;
-                
-                // Debug message for last activated profile change
-                std::wstringstream debugMsgLast;
-                debugMsgLast << L"[DEBUG] Most recently activated profile updated to: " << profile.appName << L" (scan fallback)\n";
-                OutputDebugStringW(debugMsgLast.str().c_str());
-                break;
-            }
+    // Find the first running profile (simple initialization logic)
+    for (auto& profile : appColorProfiles) {
+        if (profile.isAppRunning) {
+            selectedProfile = &profile;
+            foundActiveApp = true;
+            // Initialize lastActivatedProfile to this profile
+            lastActivatedProfile = profile.appName;
+            
+            // Debug message for last activated profile initialization
+            std::wstringstream debugMsgLast;
+            debugMsgLast << L"[DEBUG] Most recently activated profile initialized to: " << profile.appName << L" (app start)\n";
+            OutputDebugStringW(debugMsgLast.str().c_str());
+            break;
         }
     }
     
@@ -658,13 +492,11 @@ void CheckRunningAppsAndUpdateColors() {
         
         // Debug message for isProfileCurrInUse change
         std::wstringstream debugMsg;
-        debugMsg << L"[DEBUG] Profile " << selectedProfile->appName << L" - isProfileCurrInUse changed to TRUE (scan - priority: " 
-                 << (selectedProfile->appName == lastActivatedProfile ? L"most recent" : L"first available") << L")\n";
+        debugMsg << L"[DEBUG] Profile " << selectedProfile->appName << L" - isProfileCurrInUse changed to TRUE (app start initialization)\n";
         OutputDebugStringW(debugMsg.str().c_str());
         
-        activeColor = selectedProfile->appColor;
         // Set the appropriate color
-        SetDefaultColor(activeColor);
+        SetDefaultColor(selectedProfile->appColor);
         // Set lock keys color only if lock keys feature is enabled for this profile
         if (selectedProfile->lockKeysEnabled) {
             SetLockKeysColor();
@@ -676,7 +508,7 @@ void CheckRunningAppsAndUpdateColors() {
     
     if (!foundActiveApp) {
         OutputDebugStringW(L"[DEBUG] CheckRunningAppsAndUpdateColors() - No active profiles found, using default colors\n");
-        lastActivatedProfile.clear(); // Clear the last activated profile
+        lastActivatedProfile.clear(); // Ensure it stays empty if no profiles are running
     }
     
     OutputDebugStringW(L"[DEBUG] CheckRunningAppsAndUpdateColors() - Scan complete\n");
@@ -1328,4 +1160,176 @@ std::wstring FormatHighlightKeysForDisplay(const std::vector<LogiLed::KeyName>& 
         result += LogiLedKeyToDisplayName(keys[i]);
     }
     return result;
+}
+
+// Message handlers for app monitoring
+void HandleAppStarted(const std::wstring& appName) {
+    std::lock_guard<std::mutex> lock(appProfilesMutex);
+    
+    // Check if this app has a color profile
+    for (auto& profile : appColorProfiles) {
+        std::wstring lowerAppName = profile.appName;
+        std::wstring lowerCurrentApp = appName;
+        std::transform(lowerAppName.begin(), lowerAppName.end(), lowerAppName.begin(), ::towlower);
+        std::transform(lowerCurrentApp.begin(), lowerCurrentApp.end(), lowerCurrentApp.begin(), ::towlower);
+        
+        if (lowerAppName == lowerCurrentApp && !profile.isAppRunning) {
+            // App started - activate its color profile
+            profile.isAppRunning = true;
+            
+            // Debug message for isAppRunning change
+            std::wstringstream debugMsg;
+            debugMsg << L"[DEBUG] App started: " << profile.appName << L" - isAppRunning changed to TRUE\n";
+            OutputDebugStringW(debugMsg.str().c_str());
+            
+            // Update the most recently activated profile
+            lastActivatedProfile = profile.appName;
+            
+            // Debug message for last activated profile change
+            std::wstringstream debugMsgLast;
+            debugMsgLast << L"[DEBUG] Most recently activated profile updated to: " << profile.appName << L"\n";
+            OutputDebugStringW(debugMsgLast.str().c_str());
+            
+            // Check if this should be the displayed profile (most recently activated takes precedence)
+            bool shouldDisplay = true;
+            for (const auto& otherProfile : appColorProfiles) {
+                if (otherProfile.isProfileCurrInUse && otherProfile.appName != profile.appName) {
+                    shouldDisplay = true; // Always take control as the most recently activated
+                    break;
+                }
+            }
+            
+            if (shouldDisplay) {
+                // Clear all other displayed flags
+                for (auto& p : appColorProfiles) {
+                    if (p.isProfileCurrInUse && p.appName != profile.appName) {
+                        p.isProfileCurrInUse = false;
+                        // Debug message for isProfileCurrInUse change
+                        std::wstringstream debugMsg2;
+                        debugMsg2 << L"[DEBUG] Profile " << p.appName << L" - isProfileCurrInUse changed to FALSE (handoff to most recent)\n";
+                        OutputDebugStringW(debugMsg2.str().c_str());
+                    }
+                }
+                // Set this profile as displayed
+                profile.isProfileCurrInUse = true;
+                
+                // Debug message for isProfileCurrInUse change
+                std::wstringstream debugMsg3;
+                debugMsg3 << L"[DEBUG] Profile " << profile.appName << L" - isProfileCurrInUse changed to TRUE (most recently activated)\n";
+                OutputDebugStringW(debugMsg3.str().c_str());
+                
+                SetDefaultColor(profile.appColor);
+                if (profile.lockKeysEnabled) {
+                    SetLockKeysColor(); // Update lock key colors based on profile's lock keys setting
+                }
+                
+                // Apply highlight keys color
+                SetHighlightKeysColor();
+                
+                // Notify UI to update combo box
+                if (mainWindowHandle) {
+                    PostMessage(mainWindowHandle, WM_UPDATE_PROFILE_COMBO, 0, 0);
+                }
+            }
+            break;
+        }
+    }
+}
+
+void HandleAppStopped(const std::wstring& appName) {
+    std::lock_guard<std::mutex> lock(appProfilesMutex);
+    
+    for (auto& profile : appColorProfiles) {
+        std::wstring lowerAppName = profile.appName;
+        std::wstring lowerStoppedApp = appName;
+        std::transform(lowerAppName.begin(), lowerAppName.end(), lowerAppName.begin(), ::towlower);
+        std::transform(lowerStoppedApp.begin(), lowerStoppedApp.end(), lowerStoppedApp.begin(), ::towlower);
+        
+        if (lowerAppName == lowerStoppedApp && profile.isAppRunning) {
+            // App stopped - deactivate its color profile
+            profile.isAppRunning = false;
+            
+            // Debug message for isAppRunning change
+            std::wstringstream debugMsg;
+            debugMsg << L"[DEBUG] App stopped: " << profile.appName << L" - isAppRunning changed to FALSE\n";
+            OutputDebugStringW(debugMsg.str().c_str());
+            
+            // If this was the displayed profile, find a replacement or clear display
+            if (profile.isProfileCurrInUse) {
+                profile.isProfileCurrInUse = false;
+                
+                // Debug message for isProfileCurrInUse change
+                std::wstringstream debugMsg2;
+                debugMsg2 << L"[DEBUG] Profile " << profile.appName << L" - isProfileCurrInUse changed to FALSE (app stopped)\n";
+                OutputDebugStringW(debugMsg2.str().c_str());
+                
+                // Find the most recently activated profile that is still running
+                AppColorProfile* activeProfile = nullptr;
+                
+                // First, try to find the most recently activated profile if it's still running
+                if (!lastActivatedProfile.empty()) {
+                    for (auto& otherProfile : appColorProfiles) {
+                        if (otherProfile.isAppRunning && 
+                            otherProfile.appName == lastActivatedProfile && 
+                            otherProfile.appName != profile.appName) {
+                            activeProfile = &otherProfile;
+                            break;
+                        }
+                    }
+                }
+                
+                // If the most recently activated profile is not running, find any other running profile
+                if (!activeProfile) {
+                    for (auto& otherProfile : appColorProfiles) {
+                        if (otherProfile.isAppRunning && otherProfile.appName != profile.appName) {
+                            activeProfile = &otherProfile;
+                            // Update last activated to this profile since we're giving it control
+                            lastActivatedProfile = otherProfile.appName;
+                            
+                            // Debug message for last activated profile change
+                            std::wstringstream debugMsgLast;
+                            debugMsgLast << L"[DEBUG] Most recently activated profile updated to: " << otherProfile.appName << L" (handoff fallback)\n";
+                            OutputDebugStringW(debugMsgLast.str().c_str());
+                            break;
+                        }
+                    }
+                }
+                
+                if (activeProfile) {
+                    // Hand off lighting to the selected active profile
+                    activeProfile->isProfileCurrInUse = true;
+                    
+                    // Debug message for isProfileCurrInUse change
+                    std::wstringstream debugMsg3;
+                    debugMsg3 << L"[DEBUG] Profile " << activeProfile->appName << L" - isProfileCurrInUse changed to TRUE (handoff from " << profile.appName << L")\n";
+                    OutputDebugStringW(debugMsg3.str().c_str());
+                    
+                    SetDefaultColor(activeProfile->appColor);
+                    if (activeProfile->lockKeysEnabled) {
+                        SetLockKeysColor();
+                    }
+                    
+                    // Apply highlight keys color
+                    SetHighlightKeysColor();
+                    
+                    // Notify UI to update combo box
+                    if (mainWindowHandle) {
+                        PostMessage(mainWindowHandle, WM_UPDATE_PROFILE_COMBO, 0, 0);
+                    }
+                } else {
+                    // If no monitored apps are running, restore default color and enable lock keys
+                    OutputDebugStringW(L"[DEBUG] No more active profiles - restoring default colors\n");
+                    lastActivatedProfile.clear(); // Clear the last activated profile
+                    SetDefaultColor(defaultColor);
+                    SetLockKeysColor(); // Lock keys will be enabled again (default behavior)
+                }
+                
+                // Notify UI to update combo box
+                if (mainWindowHandle) {
+                    PostMessage(mainWindowHandle, WM_UPDATE_PROFILE_COMBO, 0, 0);
+                }
+            }
+            break;
+        }
+    }
 }
