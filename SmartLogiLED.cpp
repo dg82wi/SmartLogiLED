@@ -272,6 +272,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     case IDM_IMPORT_PROFILE:
                         ImportProfileFromIniFile(hWnd);
                         break;
+                    case IDM_EXPORT_SELECTED_PROFILE:
+                        ExportSelectedProfileToIniFile(hWnd);
+                        break;
                     case IDM_EXPORT_PROFILES:
                         ExportAllProfilesToIniFiles();
                         break;
