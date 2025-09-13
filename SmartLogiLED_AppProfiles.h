@@ -8,14 +8,6 @@
 #include <vector>
 #include <string>
 
-// App monitoring functions
-void InitializeAppMonitoring();
-void CleanupAppMonitoring();
-bool IsAppRunning(const std::wstring& appName);
-std::vector<std::wstring> GetVisibleRunningProcesses();
-std::vector<std::wstring> GetRunningProcesses();
-bool IsProcessVisible(DWORD processId);
-
 // App profile management functions
 void AddAppColorProfile(const std::wstring& appName, COLORREF color, bool lockKeysEnabled);
 void RemoveAppColorProfile(const std::wstring& appName);

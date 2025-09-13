@@ -1,6 +1,7 @@
 ﻿#include "SmartLogiLED_Config.h"
 #include "SmartLogiLED_KeyMapping.h"
 #include "SmartLogiLED_AppProfiles.h"
+#include "SmartLogiLED_ProcessMonitor.h"
 #include "LogitechLEDLib.h"
 #include "Resource.h"
 #include <windows.h>

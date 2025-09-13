@@ -13,6 +13,7 @@
 #include "SmartLogiLED_Config.h"
 #include "SmartLogiLED_LockKeys.h"
 #include "SmartLogiLED_AppProfiles.h"
+#include "SmartLogiLED_ProcessMonitor.h"
 #include "SmartLogiLED_KeyMapping.h"
 #include "SmartLogiLED_Version.h"
 #include "LogitechLEDLib.h"
@@ -704,7 +705,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    UpdateLockKeysCheckbox(hWnd);
 
    // Initialize app monitoring
-   InitializeAppMonitoring();
+   InitializeAppMonitoring(hWnd);
 
    // Initialize keyboard hook based on lock keys feature status
    UpdateKeyboardHookStateUnsafe();
