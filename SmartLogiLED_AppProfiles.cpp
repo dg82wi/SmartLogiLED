@@ -5,10 +5,9 @@
 #include "SmartLogiLED.h"
 #include "SmartLogiLED_AppProfiles.h"
 #include "SmartLogiLED_LockKeys.h"
+#include "SmartLogiLED_ProcessMonitor.h" // Include the new module
 #include "LogitechLEDLib.h"
 #include "Resource.h"
-#include <tlhelp32.h>
-#include <psapi.h>
 #include <algorithm>
 #include <thread>
 #include <mutex>
@@ -20,15 +19,11 @@
 extern COLORREF defaultColor;
 
 // Custom Windows messages
-#define WM_APP_STARTED (WM_USER + 102)
-#define WM_APP_STOPPED (WM_USER + 103)
 #define WM_UPDATE_PROFILE_COMBO (WM_USER + 100)
 
 // App monitoring variables
 std::vector<AppColorProfile> appColorProfiles;
 std::mutex appProfilesMutex;
-static std::thread appMonitorThread;
-static bool appMonitoringRunning = false;
 static HWND mainWindowHandle = nullptr;
 static std::deque<std::wstring> activationHistory; // Enhanced: Track activation history for better fallback
 static const size_t MAX_ACTIVATION_HISTORY = 10; // Maximum number of profiles to remember in history
@@ -237,162 +232,6 @@ AppColorProfile* FindBestFallbackProfile(const std::wstring& excludeProfile) {
 void CleanupActivationHistory() {
     std::lock_guard<std::mutex> lock(appProfilesMutex);
     CleanupActivationHistoryInternal();
-}
-
-// App monitoring functions
-
-// Check if a process has visible windows
-bool IsProcessVisible(DWORD processId) {
-    struct EnumData {
-        DWORD processId;
-        bool hasVisibleWindow;
-    };
-    
-    EnumData enumData = { processId, false };
-    
-    EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
-        EnumData* data = reinterpret_cast<EnumData*>(lParam);
-        
-        DWORD windowProcessId;
-        GetWindowThreadProcessId(hwnd, &windowProcessId);
-        
-        if (windowProcessId == data->processId) {
-            // Check if window is visible and not minimized
-            if (IsWindowVisible(hwnd) && !IsIconic(hwnd)) {
-                // Check if it's a main window (has no owner)
-                if (GetWindow(hwnd, GW_OWNER) == NULL) {
-                    // Additional check: window should have a title or be a main application window
-                    WCHAR windowTitle[256];
-                    if (GetWindowTextW(hwnd, windowTitle, sizeof(windowTitle) / sizeof(WCHAR)) > 0) {
-                        data->hasVisibleWindow = true;
-                        return FALSE; // Stop enumeration
-                    }
-                }
-            }
-        }
-        return TRUE; // Continue enumeration
-    }, reinterpret_cast<LPARAM>(&enumData));
-    
-    return enumData.hasVisibleWindow;
-}
-
-// Get list of currently running processes
-std::vector<std::wstring> GetRunningProcesses() {
-    std::vector<std::wstring> processes;
-    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    
-    if (hSnapshot != INVALID_HANDLE_VALUE) {
-        PROCESSENTRY32W pe32;
-        pe32.dwSize = sizeof(PROCESSENTRY32W);
-        
-        if (Process32FirstW(hSnapshot, &pe32)) {
-            do {
-                processes.push_back(std::wstring(pe32.szExeFile));
-            } while (Process32NextW(hSnapshot, &pe32));
-        }
-        CloseHandle(hSnapshot);
-    }
-    
-    return processes;
-}
-
-// Get list of currently running visible processes
-std::vector<std::wstring> GetVisibleRunningProcesses() {
-    std::vector<std::wstring> processes;
-    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    
-    if (hSnapshot != INVALID_HANDLE_VALUE) {
-        PROCESSENTRY32W pe32;
-        pe32.dwSize = sizeof(PROCESSENTRY32W);
-        
-        if (Process32FirstW(hSnapshot, &pe32)) {
-            do {
-                // Check if process has visible windows
-                if (IsProcessVisible(pe32.th32ProcessID)) {
-                    processes.push_back(std::wstring(pe32.szExeFile));
-                }
-            } while (Process32NextW(hSnapshot, &pe32));
-        }
-        CloseHandle(hSnapshot);
-    }
-    
-    return processes;
-}
-
-// Check if a specific app is running
-bool IsAppRunning(const std::wstring& appName) {
-    std::vector<std::wstring> processes = GetVisibleRunningProcesses();
-    
-    // Convert to lowercase for case-insensitive comparison
-    std::wstring lowerAppName = appName;
-    std::transform(lowerAppName.begin(), lowerAppName.end(), lowerAppName.begin(), ::towlower);
-    
-    for (const auto& process : processes) {
-        std::wstring lowerProcess = process;
-        std::transform(lowerProcess.begin(), lowerProcess.end(), lowerProcess.begin(), ::towlower);
-        
-        if (lowerProcess == lowerAppName) {
-            return true;
-        }
-    }
-    
-    return false;
-}
-
-// App monitoring thread function
-void AppMonitorThreadProc() {
-    std::vector<std::wstring> lastRunningApps;
-    
-    while (appMonitoringRunning) {
-        std::vector<std::wstring> currentRunningApps = GetVisibleRunningProcesses();
-        
-        // Check for newly started apps
-        for (const auto& app : currentRunningApps) {
-            // If app wasn't running before but is running now
-            if (std::find(lastRunningApps.begin(), lastRunningApps.end(), app) == lastRunningApps.end()) {
-                // Send message to main window about app start
-                if (mainWindowHandle) {
-                    // Copy string to heap for message passing
-                    std::wstring* appName = new std::wstring(app);
-                    PostMessage(mainWindowHandle, WM_APP_STARTED, 0, reinterpret_cast<LPARAM>(appName));
-                }
-            }
-        }
-        
-        // Check for stopped apps
-        for (const auto& app : lastRunningApps) {
-            // If app was running before but is not running now
-            if (std::find(currentRunningApps.begin(), currentRunningApps.end(), app) == currentRunningApps.end()) {
-                // Send message to main window about app stop
-                if (mainWindowHandle) {
-                    // Copy string to heap for message passing
-                    std::wstring* appName = new std::wstring(app);
-                    PostMessage(mainWindowHandle, WM_APP_STOPPED, 0, reinterpret_cast<LPARAM>(appName));
-                }
-            }
-        }
-        
-        lastRunningApps = currentRunningApps;
-        
-        // Sleep for 2 seconds before next check
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-}
-
-// Initialize app monitoring
-void InitializeAppMonitoring() {
-    if (!appMonitoringRunning) {
-        appMonitoringRunning = true;
-        appMonitorThread = std::thread(AppMonitorThreadProc);
-    }
-}
-
-// Cleanup app monitoring
-void CleanupAppMonitoring() {
-    appMonitoringRunning = false;
-    if (appMonitorThread.joinable()) {
-        appMonitorThread.join();
-    }
 }
 
 // Add an app color profile with lock keys feature control
