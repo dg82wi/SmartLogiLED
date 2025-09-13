@@ -200,8 +200,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     case IDC_BOX_NUMLOCK:
                         // Show color picker for NumLock
                         ShowColorPicker(hWnd, numLockColor, LogiLed::KeyName::NUM_LOCK);
-                        if (hBrushNum) DeleteObject(hBrushNum);
-                        hBrushNum = CreateSolidBrush(numLockColor);
                         InvalidateRect(GetDlgItem(hWnd, IDC_BOX_NUMLOCK), NULL, TRUE);
                         // Set color according to lock state and feature enabled state
                         if (IsLockKeysFeatureEnabled()) {
@@ -217,8 +215,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     case IDC_BOX_CAPSLOCK:
                         // Show color picker for CapsLock
                         ShowColorPicker(hWnd, capsLockColor, LogiLed::KeyName::CAPS_LOCK);
-                        if (hBrushCaps) DeleteObject(hBrushCaps);
-                        hBrushCaps = CreateSolidBrush(capsLockColor);
                         InvalidateRect(GetDlgItem(hWnd, IDC_BOX_CAPSLOCK), NULL, TRUE);
                         // Set color according to lock state and feature enabled state
                         if (IsLockKeysFeatureEnabled()) {
@@ -234,8 +230,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     case IDC_BOX_SCROLLLOCK:
                         // Show color picker for ScrollLock
                         ShowColorPicker(hWnd, scrollLockColor, LogiLed::KeyName::SCROLL_LOCK);
-                        if (hBrushScroll) DeleteObject(hBrushScroll);
-                        hBrushScroll = CreateSolidBrush(scrollLockColor);
                         InvalidateRect(GetDlgItem(hWnd, IDC_BOX_SCROLLLOCK), NULL, TRUE);
                         // Set color according to lock state and feature enabled state
                         if (IsLockKeysFeatureEnabled()) {
@@ -251,8 +245,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     case IDC_BOX_DEFAULTCOLOR:
                         // Show color picker for default color
                         ShowColorPicker(hWnd, defaultColor);
-                        if (hBrushDefault) DeleteObject(hBrushDefault);
-                        hBrushDefault = CreateSolidBrush(defaultColor);
                         InvalidateRect(GetDlgItem(hWnd, IDC_BOX_DEFAULTCOLOR), NULL, TRUE);
                         // set new color for all keys
                         SetDefaultColor(defaultColor);
@@ -377,7 +369,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     return (LRESULT)hBrushDefault;
                 }
                 if (hCtrl == GetDlgItem(hWnd, IDC_BOX_APPCOLOR)) {
-                    if (hBrushAppColor) DeleteObject(hBrushAppColor);
+                    HBRUSH hOldBrush = hBrushAppColor;
                     
                     HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
                     int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
@@ -393,6 +385,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     }
                     
                     hBrushAppColor = CreateSolidBrush(appColor);
+                    if (hOldBrush) DeleteObject(hOldBrush);
                     SetBkMode(hdcStatic, TRANSPARENT);
                     
                     // If NONE is selected, we'll draw the diagonal line in WM_PAINT
@@ -400,7 +393,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     return (LRESULT)hBrushAppColor;
                 }
                 if (hCtrl == GetDlgItem(hWnd, IDC_BOX_APPHIGHLIGHTCOLOR)) {
-                    if (hBrushAppHighlightColor) DeleteObject(hBrushAppHighlightColor);
+                    HBRUSH hOldBrush = hBrushAppHighlightColor;
                     
                     HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
                     int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
@@ -416,6 +409,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     }
                     
                     hBrushAppHighlightColor = CreateSolidBrush(appHighlightColor);
+                    if (hOldBrush) DeleteObject(hOldBrush);
                     SetBkMode(hdcStatic, TRANSPARENT);
                     
                     // If NONE is selected, we'll draw the diagonal line in WM_PAINT
@@ -540,7 +534,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         case WM_LOCK_KEY_PRESSED: // Custom message for lock key pressed
             {
                 DWORD vkCode = (DWORD)wParam;
-                HandleLockKeyPressed(vkCode);
+                DWORD vkState = (DWORD)lParam; // Get the new key state from lParam
+                HandleLockKeyPressed(vkCode, vkState);
             }
             break;
         case WM_UPDATE_PROFILE_COMBO: // Custom message to update profile combo box

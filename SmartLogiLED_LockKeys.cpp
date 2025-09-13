@@ -13,7 +13,7 @@
 // External variables from main file
 extern COLORREF capsLockColor;
 extern COLORREF scrollLockColor; 
-extern COLORREF numLockColor;
+extern COLORREF numLockColor;  
 extern COLORREF defaultColor;
 extern HHOOK keyboardHook;
 
@@ -48,33 +48,33 @@ void SetLockKeysColor(void) {
 
 // Set color for lock keys with a specific profile (unsafe version - doesn't acquire mutex)
 void SetLockKeysColorWithProfile(AppColorProfile* displayedProfile) {
-    SHORT keyState;
-    LogiLed::KeyName pressedKey;
-    COLORREF colorToSet;
-    
     // Determine the color to use for "off" state - app color if profile is active, otherwise default color
     COLORREF offStateColor = defaultColor;
     if (displayedProfile) {
         offStateColor = displayedProfile->appColor;
     }
 
-    // NumLock
-    keyState = GetKeyState(VK_NUMLOCK) & 0x0001;
-    pressedKey = LogiLed::KeyName::NUM_LOCK;
-    colorToSet = (keyState == 0x0001) ? numLockColor : offStateColor;
-    SetKeyColor(pressedKey, colorToSet);
+    // Only apply lock key colors if the feature is enabled for the current context
+    bool lockKeysActive = !displayedProfile || displayedProfile->lockKeysEnabled;
+    if (!lockKeysActive) {
+        // If disabled for the profile, ensure lock keys have the base app color
+        SetKeyColor(LogiLed::KeyName::NUM_LOCK, offStateColor);
+        SetKeyColor(LogiLed::KeyName::CAPS_LOCK, offStateColor);
+        SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, offStateColor);
+        return;
+    }
 
-    // ScrollLock
-    keyState = GetKeyState(VK_SCROLL) & 0x0001;
-    pressedKey = LogiLed::KeyName::SCROLL_LOCK;
-    colorToSet = (keyState == 0x0001) ? scrollLockColor : offStateColor;
-    SetKeyColor(pressedKey, colorToSet);
+    // NumLock
+    SHORT keyStateNum = GetKeyState(VK_NUMLOCK) & 0x0001;
+    SetKeyColor(LogiLed::KeyName::NUM_LOCK, (keyStateNum == 0x0001) ? numLockColor : offStateColor);
 
     // CapsLock
-    keyState = GetKeyState(VK_CAPITAL) & 0x0001;
-    pressedKey = LogiLed::KeyName::CAPS_LOCK;
-    colorToSet = (keyState == 0x0001) ? capsLockColor : offStateColor;
-    SetKeyColor(pressedKey, colorToSet);
+    SHORT keyStateCaps = GetKeyState(VK_CAPITAL) & 0x0001;
+    SetKeyColor(LogiLed::KeyName::CAPS_LOCK, (keyStateCaps == 0x0001) ? capsLockColor : offStateColor);
+
+    // ScrollLock
+    SHORT keyStateScroll = GetKeyState(VK_SCROLL) & 0x0001;
+    SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, (keyStateScroll == 0x0001) ? scrollLockColor : offStateColor);
 }
 
 // Set highlight color for keys from the currently active profile
@@ -89,37 +89,7 @@ void SetHighlightKeysColorWithProfile(AppColorProfile* displayedProfile) {
     
     // Apply highlight color to all keys in the highlight list
     for (const auto& key : displayedProfile->highlightKeys) {
-        // Check if this is a lock key and if lock keys are enabled
-        bool isLockKey = (key == LogiLed::KeyName::NUM_LOCK || 
-                        key == LogiLed::KeyName::CAPS_LOCK || 
-                        key == LogiLed::KeyName::SCROLL_LOCK);
-        
-        if (isLockKey && displayedProfile->lockKeysEnabled) {
-            // For lock keys, check their state and apply appropriate color
-            SHORT keyState = 0;
-            COLORREF lockColor = defaultColor;
-            
-            if (key == LogiLed::KeyName::NUM_LOCK) {
-                keyState = GetKeyState(VK_NUMLOCK) & 0x0001;
-                lockColor = (keyState == 0x0001) ? numLockColor : defaultColor;
-            } else if (key == LogiLed::KeyName::CAPS_LOCK) {
-                keyState = GetKeyState(VK_CAPITAL) & 0x0001;
-                lockColor = (keyState == 0x0001) ? capsLockColor : defaultColor;
-            } else if (key == LogiLed::KeyName::SCROLL_LOCK) {
-                keyState = GetKeyState(VK_SCROLL) & 0x0001;
-                lockColor = (keyState == 0x0001) ? scrollLockColor : defaultColor;
-            }
-            
-            // Lock key color takes precedence over highlight color when lock is active
-            if (keyState == 0x0001) {
-                SetKeyColor(key, lockColor);
-            } else {
-                SetKeyColor(key, displayedProfile->appHighlightColor);
-            }
-        } else {
-            // For non-lock keys or when lock keys are disabled, apply highlight color
-            SetKeyColor(key, displayedProfile->appHighlightColor);
-        }
+        SetKeyColor(key, displayedProfile->appHighlightColor);
     }
 }
 
@@ -135,10 +105,8 @@ void ShowColorPicker(HWND hWnd, COLORREF& color, LogiLed::KeyName key) {
     cc.Flags = CC_FULLOPEN | CC_RGBINIT;
     if (ChooseColor(&cc)) {
         color = cc.rgbResult;
-        if (key != LogiLed::KeyName::ESC) {
-            SetKeyColor(key, color);
-        }
-        InvalidateRect(hWnd, NULL, TRUE);
+        // The caller is responsible for updating the key color and UI.
+        // This makes the function's purpose clearer.
     }
 }
 
@@ -151,7 +119,11 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         if ((pKeyStruct->vkCode == VK_NUMLOCK) || (pKeyStruct->vkCode == VK_SCROLL) || (pKeyStruct->vkCode == VK_CAPITAL)) {
             // Send message to main window to handle lock key press
             if (mainWindowHandle) {
-                PostMessage(mainWindowHandle, WM_LOCK_KEY_PRESSED, pKeyStruct->vkCode, 0);
+                // Get the key state *before* this press toggles it. The low-order bit is the toggle state.
+                SHORT keyState = GetKeyState(pKeyStruct->vkCode);
+                // send inverted state as Lock Key state toogles only after windows handling  
+                LPARAM state = !(keyState & 0x0001); // 1 if toggled on, 0 if off
+                PostMessage(mainWindowHandle, WM_LOCK_KEY_PRESSED, pKeyStruct->vkCode, state);
             }
         }
     }
@@ -160,63 +132,77 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
 }
 
 // Handle lock key press in main thread
-void HandleLockKeyPressed(DWORD vkCode) {
-    // Determine the color to use for "off" state - app color if profile is active, otherwise default color
-    COLORREF offStateColor = defaultColor;
-    AppColorProfile* displayedProfile = GetDisplayedProfile();
-    if (displayedProfile) {
-        offStateColor = displayedProfile->appColor;
-    }
-
+void HandleLockKeyPressed(DWORD vkCode, DWORD vkState) {
+    
     // Check if lock keys feature is enabled
     if (!IsLockKeysFeatureEnabled()) {
-        LogiLed::KeyName pressedKey;
+        // Lock keys feature is disabled - keep lock keys at the app color
+        AppColorProfile* displayedProfile = GetDisplayedProfile();
+        COLORREF offStateColor = defaultColor;
+        if (displayedProfile) {
+            offStateColor = displayedProfile->appColor;
+        }
+        
+        LogiLed::KeyName lockKey;
         switch (vkCode) {
         case VK_NUMLOCK:
-            pressedKey = LogiLed::KeyName::NUM_LOCK;
-            break;
-        case VK_SCROLL:
-            pressedKey = LogiLed::KeyName::SCROLL_LOCK;
+            lockKey = LogiLed::KeyName::NUM_LOCK;
             break;
         case VK_CAPITAL:
-            pressedKey = LogiLed::KeyName::CAPS_LOCK;
+            lockKey = LogiLed::KeyName::CAPS_LOCK;
+            break;
+        case VK_SCROLL:
+            lockKey = LogiLed::KeyName::SCROLL_LOCK;
             break;
         default:
             return; // Unknown key
         }
-        SetKeyColor(pressedKey, offStateColor);
+        SetKeyColor(lockKey, offStateColor);
         return;
     }
 
-    SHORT keyState;
-    LogiLed::KeyName pressedKey;
-    COLORREF colorToSet;
-
-    // The lock key state is updated only after this callback, so current state off means the key will be turned on
-    switch (vkCode) {
-    case VK_NUMLOCK:
-        keyState = GetKeyState(VK_NUMLOCK) & 0x0001;
-        pressedKey = LogiLed::KeyName::NUM_LOCK;
-        colorToSet = (keyState == 0x0000) ? numLockColor : offStateColor;
-        break;
-    case VK_SCROLL:
-        keyState = GetKeyState(VK_SCROLL) & 0x0001;
-        pressedKey = LogiLed::KeyName::SCROLL_LOCK;
-        colorToSet = (keyState == 0x0000) ? scrollLockColor : offStateColor;
-        break;
-    case VK_CAPITAL:
-        keyState = GetKeyState(VK_CAPITAL) & 0x0001;
-        pressedKey = LogiLed::KeyName::CAPS_LOCK;
-        colorToSet = (keyState == 0x0000) ? capsLockColor : offStateColor;
-        break;
-    default:
-        return; // Unknown key
+    // Lock keys feature is enabled - apply lock key colors based on state
+    AppColorProfile* displayedProfile = GetDisplayedProfile();
+    COLORREF offStateColor = defaultColor;
+    if (displayedProfile) {
+        offStateColor = displayedProfile->appColor;
     }
 
-    SetKeyColor(pressedKey, colorToSet);
-    
-    // Also reapply highlight keys in case the pressed key is in the highlight list
-    SetHighlightKeysColorWithProfile(displayedProfile); // Use safe version since this doesn't hold the mutex
+    switch (vkCode) {
+        case VK_NUMLOCK:
+            if (vkState == 0x0001) {
+                // Key is now ON
+                SetKeyColor(LogiLed::KeyName::NUM_LOCK, numLockColor);
+            } else {
+                // Key is now OFF
+                SetKeyColor(LogiLed::KeyName::NUM_LOCK, offStateColor);
+            }
+            break;
+        case VK_CAPITAL:
+            if (vkState == 0x0001) {
+                // Key is now ON
+                SetKeyColor(LogiLed::KeyName::CAPS_LOCK, capsLockColor);
+            } else {
+                // Key is now OFF
+                SetKeyColor(LogiLed::KeyName::CAPS_LOCK, offStateColor);
+            }
+            break;
+        case VK_SCROLL:
+            if (vkState == 0x0001) {
+                // Key is now ON
+                SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, scrollLockColor);
+            } else {
+                // Key is now OFF
+                SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, offStateColor);
+            }
+            break;
+        default:
+            return; // Not a lock key, ignore
+	}
+
+    // Re-apply highlight colors in case a lock key was also a highlight key.
+    // The lock color will correctly take precedence.
+    SetHighlightKeysColor();
 }
 
 // Hook management functions

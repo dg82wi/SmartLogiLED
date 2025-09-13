@@ -10,7 +10,7 @@
 // Lock key color management functions
 void SetLockKeysColor(void);
 void SetLockKeysColorWithProfile(AppColorProfile* displayedProfile); // Unsafe version for mutex-locked contexts
-void HandleLockKeyPressed(DWORD vkCode);
+void HandleLockKeyPressed(DWORD vkCode, DWORD vkState);
 
 // Keyboard hook management functions
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
