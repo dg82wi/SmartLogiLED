@@ -51,6 +51,9 @@
     <ClInclude Include="SmartLogiLED_ProcessMonitor.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="SmartLogiLED_Types.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SmartLogiLED.cpp">

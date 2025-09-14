@@ -24,7 +24,7 @@
 #include <vector>
 
 #define MAX_LOADSTRING 100
-#define WM_UPDATE_PROFILE_COMBO (WM_USER + 100)
+
 
 // Global variables:
 HINSTANCE hInst;                                // Current instance

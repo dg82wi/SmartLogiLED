@@ -1,5 +1,4 @@
 #include "framework.h"
-#include "SmartLogiLED_ProcessMonitor.h"
 #include <thread>
 #include <mutex>
 #include <chrono>
@@ -8,6 +7,7 @@
 #include <algorithm>
 #include <tlhelp32.h>
 #include <psapi.h>
+#include "SmartLogiLED_ProcessMonitor.h"
 
 // Module-specific variables
 static std::thread appMonitorThread;

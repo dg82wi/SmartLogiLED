@@ -3,10 +3,8 @@
 #include <windows.h>
 #include <string>
 #include <vector>
+#include "SmartLogiLED_Types.h"
 
-// Custom Windows messages for app events
-#define WM_APP_STARTED (WM_USER + 102)
-#define WM_APP_STOPPED (WM_USER + 103)
 
 // Public interface for the Process Monitor
 void InitializeAppMonitoring(HWND hMainWindow);

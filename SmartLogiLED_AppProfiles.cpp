@@ -18,9 +18,6 @@
 // External variables from main file
 extern COLORREF defaultColor;
 
-// Custom Windows messages
-#define WM_UPDATE_PROFILE_COMBO (WM_USER + 100)
-
 // App monitoring variables
 std::vector<AppColorProfile> appColorProfiles;
 std::mutex appProfilesMutex;
@@ -110,6 +107,20 @@ void UpdateActivationHistoryInternal(const std::wstring& profileName) {
     }
     debugMsg << L"END\n";
     OutputDebugStringW(debugMsg.str().c_str());
+}
+
+void RemoveFromActivationHistoryInternal(const std::wstring& profileName) {
+    // Note: This function assumes the appProfilesMutex is already locked by the caller
+    
+    auto it = std::find(activationHistory.begin(), activationHistory.end(), profileName);
+    if (it != activationHistory.end()) {
+        activationHistory.erase(it);
+        
+        // Debug logging
+        std::wstringstream debugMsg;
+        debugMsg << L"[DEBUG] Removed profile from activation history: " << profileName << L"\n";
+        OutputDebugStringW(debugMsg.str().c_str());
+    }
 }
 
 // Enhanced function to find the best fallback profile (INTERNAL - NO LOCK)
@@ -657,9 +668,16 @@ void HandleAppStopped(const std::wstring& appName) {
         std::lock_guard<std::mutex> lock(appProfilesMutex);
         
         AppColorProfile* profile = FindProfileByNameInternal(appName);
-        if (profile && profile->isAppRunning) {
-            profile->isAppRunning = false;
+        if (profile) {
             changed = true;
+			// Remove from activation history
+			RemoveFromActivationHistoryInternal(profile->appName);
+            if (profile->isAppRunning) {
+                profile->isAppRunning = false;
+                std::wstringstream debugMsg;
+                debugMsg << L"[DEBUG] Profile " << profile->appName << L" - isAppRunning changed to FALSE (HandleAppStopped)\n";
+                OutputDebugStringW(debugMsg.str().c_str());
+			}
         }
     } // Mutex released here
     

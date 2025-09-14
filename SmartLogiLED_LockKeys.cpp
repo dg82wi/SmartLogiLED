@@ -17,8 +17,6 @@ extern COLORREF numLockColor;
 extern COLORREF defaultColor;
 extern HHOOK keyboardHook;
 
-// Custom window message for lock key press handling
-#define WM_LOCK_KEY_PRESSED (WM_USER + 101)
 
 // Hook management variables
 static bool isKeyboardHookEnabled = false;
