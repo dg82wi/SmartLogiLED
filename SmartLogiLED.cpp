@@ -611,7 +611,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Group Box for App Profiles
    HWND hAppGroup = CreateWindowW(L"BUTTON", L"App Profile", WS_VISIBLE | WS_CHILD | BS_GROUPBOX, 20, 160, 380, 220, hWnd, (HMENU)IDC_GROUP_APPPROFILE, hInstance, nullptr);
    // Current Profile Label
-   CreateWindowW(L"STATIC", L"Profile in use: NONE", WS_VISIBLE | WS_CHILD, 40, 190, 300, 15, hWnd, (HMENU)IDC_LABEL_CURRENT_PROFILE, hInstance, nullptr);
+   CreateWindowW(L"STATIC", L"Profile in use: NONE", WS_VISIBLE | WS_CHILD, 40, 190, 210, 15, hWnd, (HMENU)IDC_LABEL_CURRENT_PROFILE, hInstance, nullptr);
    // Combo Box for App Profiles
    HWND hCombo = CreateWindowW(L"COMBOBOX", NULL, WS_VISIBLE | WS_CHILD | CBS_DROPDOWNLIST | WS_VSCROLL, 40, 220, 200, 200, hWnd, (HMENU)IDC_COMBO_APPPROFILE, hInstance, nullptr);
    // Add Profile Button
@@ -630,7 +630,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    CreateWindowW(L"STATIC", L"Highlight Color", WS_VISIBLE | WS_CHILD | SS_CENTER, 140, 325, 60, 30, hWnd, (HMENU)IDC_LABEL_APPHIGHLIGHTCOLOR, hInstance, nullptr);
 
    // Lock Keys Visualisation Checkbox
-   CreateWindowW(L"BUTTON", L"Lock Keys", WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX, 240, 280, 100, 20, hWnd, (HMENU)IDC_CHECK_LOCK_KEYS_VISUALISATION, hInstance, nullptr);
+   CreateWindowW(L"BUTTON", L"Lock Keys", WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX, 260, 190, 100, 20, hWnd, (HMENU)IDC_CHECK_LOCK_KEYS_VISUALISATION, hInstance, nullptr);
 
    // Show window according to start minimized setting
    if (startMinimized) {
