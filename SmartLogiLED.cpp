@@ -16,6 +16,7 @@
 #include "SmartLogiLED_ProcessMonitor.h"
 #include "SmartLogiLED_KeyMapping.h"
 #include "SmartLogiLED_Version.h"
+#include "SmartLogiLED_Dialogs.h"
 #include "LogitechLEDLib.h"
 #include "Resource.h"
 #include <shellapi.h>
@@ -63,25 +64,19 @@ DWORD GetVersionNumber() {
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    Help(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    KeysDialog(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    AddProfileDialog(HWND, UINT, WPARAM, LPARAM);
 void                CreateTrayIcon(HWND hWnd);
 void                RemoveTrayIcon();
 void                ShowTrayContextMenu(HWND hWnd);
 void                PopulateAppProfileCombo(HWND hCombo);
 void                RefreshAppProfileCombo(HWND hWnd);
-void                ShowAddProfileDialog(HWND hWnd);
 void                RemoveSelectedProfile(HWND hWnd);
 void                UpdateActiveProfileSelection(HWND hWnd);
 void                UpdateCurrentProfileLabel(HWND hWnd);
 void                UpdateRemoveButtonState(HWND hWnd);
 void                UpdateAppProfileColorBoxes(HWND hWnd);
-void                ShowAppColorPicker(HWND hWnd, bool isHighlightColor);
 void                UpdateLockKeysCheckbox(HWND hWnd);
-void                ShowKeysDialog(HWND hWnd);
 void                UpdateKeysButtonState(HWND hWnd);
+void                UpdateActionKeysButtonState(HWND hWnd);
 
 // Entry point for the application
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -192,6 +187,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
     static HBRUSH hBrushNum = NULL, hBrushCaps = NULL, hBrushScroll = NULL, hBrushDefault = NULL;
     static HBRUSH hBrushAppColor = NULL;
     static HBRUSH hBrushAppHighlightColor = NULL;
+    static HBRUSH hBrushAppActionColor = NULL;
     switch (message) {
         case WM_COMMAND:
             {
@@ -294,21 +290,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     case IDC_BUTTON_KEYS:
                         ShowKeysDialog(hWnd);
                         break;
+                    case IDC_BUTTON_AKEYS:
+                        ShowActionKeysDialog(hWnd);
+                        break;
                     case IDC_COMBO_APPPROFILE:
                         if (HIWORD(wParam) == CBN_SELCHANGE) {
                             UpdateRemoveButtonState(hWnd);
                             UpdateAppProfileColorBoxes(hWnd);
                             UpdateLockKeysCheckbox(hWnd);
                             UpdateKeysButtonState(hWnd);
+                            UpdateActionKeysButtonState(hWnd);
                         }
                         break;
                     case IDC_BOX_APPCOLOR:
                         // Show color picker for App Color
-                        ShowAppColorPicker(hWnd, false);
+                        ShowAppColorPicker(hWnd, 0); // 0 for app color
                         break;
                     case IDC_BOX_APPHIGHLIGHTCOLOR:
                         // Show color picker for App Highlight Color
-                        ShowAppColorPicker(hWnd, true);
+                        ShowAppColorPicker(hWnd, 1); // 1 for highlight color
+                        break;
+                    case IDC_BOX_APPACTIONCOLOR:
+                        // Show color picker for App Action Color
+                        ShowAppColorPicker(hWnd, 2); // 2 for action color
                         break;
                     case IDC_CHECK_LOCK_KEYS_VISUALISATION:
                         // Handle lock keys visualisation checkbox
@@ -416,6 +420,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     // This just provides the background color
                     return (LRESULT)hBrushAppHighlightColor;
                 }
+                if (hCtrl == GetDlgItem(hWnd, IDC_BOX_APPACTIONCOLOR)) {
+                    HBRUSH hOldBrush = hBrushAppActionColor;
+                    
+                    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+                    int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
+                    COLORREF appActionColor = RGB(128, 128, 128); // Default gray
+                    
+                    if (selectedIndex > 0) { // Not "NONE"
+                        WCHAR appName[256];
+                        SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
+                        AppColorProfile* profile = GetAppProfileByName(appName);
+                        if (profile) {
+                            appActionColor = profile->appActionColor;
+                        }
+                    }
+                    
+                    hBrushAppActionColor = CreateSolidBrush(appActionColor);
+                    if (hOldBrush) DeleteObject(hOldBrush);
+                    SetBkMode(hdcStatic, TRANSPARENT);
+                    
+                    // If NONE is selected, we'll draw the diagonal line in WM_PAINT
+                    // This just provides the background color
+                    return (LRESULT)hBrushAppActionColor;
+                }
             }
             break;
         case WM_DRAWITEM:
@@ -489,6 +517,38 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                         
                         return TRUE;
                     }
+                    else if (pDIS->CtlID == IDC_BOX_APPACTIONCOLOR) {
+                        COLORREF appActionColor = RGB(128, 128, 128); // Default gray
+                        
+                        if (selectedIndex > 0) { // Not "NONE"
+                            WCHAR appName[256];
+                            SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
+                            AppColorProfile* profile = GetAppProfileByName(appName);
+                            if (profile) {
+                                appActionColor = profile->appActionColor;
+                            }
+                        }
+                        
+                        // Fill the rectangle with the color
+                        HBRUSH brush = CreateSolidBrush(appActionColor);
+                        FillRect(pDIS->hDC, &pDIS->rcItem, brush);
+                        DeleteObject(brush);
+                        
+                        // Draw red diagonal line if "NONE" is selected (deactivated state)
+                        if (selectedIndex == 0 || selectedIndex == CB_ERR) {
+                            HPEN redPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0)); // Bold red pen
+                            HPEN oldPen = (HPEN)SelectObject(pDIS->hDC, redPen);
+                            
+                            // Draw diagonal line from top-left to bottom-right
+                            MoveToEx(pDIS->hDC, pDIS->rcItem.left + 2, pDIS->rcItem.top + 2, NULL);
+                            LineTo(pDIS->hDC, pDIS->rcItem.right - 2, pDIS->rcItem.bottom - 2);
+                            
+                            SelectObject(pDIS->hDC, oldPen);
+                            DeleteObject(redPen);
+                        }
+                        
+                        return TRUE;
+                    }
                 }
             }
             break;
@@ -500,6 +560,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             if (hBrushDefault) DeleteObject(hBrushDefault);
             if (hBrushAppColor) DeleteObject(hBrushAppColor);
             if (hBrushAppHighlightColor) DeleteObject(hBrushAppHighlightColor);
+            if (hBrushAppActionColor) DeleteObject(hBrushAppActionColor);
             RemoveTrayIcon();
             CleanupAppMonitoring(); // Cleanup app monitoring before other cleanup
             DisableKeyboardHook(); // Use managed hook cleanup
@@ -544,6 +605,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             UpdateRemoveButtonState(hWnd);
             UpdateAppProfileColorBoxes(hWnd);
             UpdateLockKeysCheckbox(hWnd);
+            UpdateKeysButtonState(hWnd);
+            UpdateActionKeysButtonState(hWnd);
             break;
         case WM_APP_STARTED: // Custom message for app started
             {
@@ -619,7 +682,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Remove Profile Button  
    CreateWindowW(L"BUTTON", L"-", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 290, 220, 30, 25, hWnd, (HMENU)IDC_BUTTON_REMOVE_PROFILE, hInstance, nullptr);
    // Keys Button
-   CreateWindowW(L"BUTTON", L"Keys", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 330, 220, 50, 25, hWnd, (HMENU)IDC_BUTTON_KEYS, hInstance, nullptr);
+   CreateWindowW(L"BUTTON", L"H-Keys", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 325, 260, 55, 25, hWnd, (HMENU)IDC_BUTTON_KEYS, hInstance, nullptr);
+   // A-Keys Button
+   CreateWindowW(L"BUTTON", L"A-Keys", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 325, 300, 55, 25, hWnd, (HMENU)IDC_BUTTON_AKEYS, hInstance, nullptr);
 
    // App Color Box and Label
    CreateWindowW(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_NOTIFY | SS_OWNERDRAW, 40, 260, 60, 60, hWnd, (HMENU)IDC_BOX_APPCOLOR, hInstance, nullptr);
@@ -628,6 +693,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // App Highlight Color Box and Label
    CreateWindowW(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_NOTIFY | SS_OWNERDRAW, 140, 260, 60, 60, hWnd, (HMENU)IDC_BOX_APPHIGHLIGHTCOLOR, hInstance, nullptr);
    CreateWindowW(L"STATIC", L"Highlight Color", WS_VISIBLE | WS_CHILD | SS_CENTER, 140, 325, 60, 30, hWnd, (HMENU)IDC_LABEL_APPHIGHLIGHTCOLOR, hInstance, nullptr);
+
+   // App Action Color Box and Label
+   CreateWindowW(L"STATIC", NULL, WS_VISIBLE | WS_CHILD | SS_NOTIFY | SS_OWNERDRAW, 240, 260, 60, 60, hWnd, (HMENU)IDC_BOX_APPACTIONCOLOR, hInstance, nullptr);
+   CreateWindowW(L"STATIC", L"Action Color", WS_VISIBLE | WS_CHILD | SS_CENTER, 240, 325, 60, 30, hWnd, (HMENU)IDC_LABEL_APPACTIONCOLOR, hInstance, nullptr);
 
    // Lock Keys Visualisation Checkbox
    CreateWindowW(L"BUTTON", L"Lock Keys", WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX, 260, 190, 100, 20, hWnd, (HMENU)IDC_CHECK_LOCK_KEYS_VISUALISATION, hInstance, nullptr);
@@ -737,23 +806,6 @@ void PopulateAppProfileCombo(HWND hCombo) {
     SendMessage(hCombo, CB_SETCURSEL, displayedProfileIndex, 0);
 }
 
-// Refresh the app profile combo box
-void RefreshAppProfileCombo(HWND hWnd) {
-    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
-    if (hCombo) {
-        PopulateAppProfileCombo(hCombo);
-        UpdateCurrentProfileLabel(hWnd);
-        UpdateRemoveButtonState(hWnd);
-        UpdateAppProfileColorBoxes(hWnd);
-        UpdateLockKeysCheckbox(hWnd);
-    }
-}
-
-// Show dialog to add a new app profile
-void ShowAddProfileDialog(HWND hWnd) {
-    DialogBox(hInst, MAKEINTRESOURCE(IDD_ADDPROFILEBOX), hWnd, AddProfileDialog);
-}
-
 // Remove the selected app profile
 void RemoveSelectedProfile(HWND hWnd) {
     HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
@@ -858,10 +910,28 @@ void UpdateKeysButtonState(HWND hWnd) {
     }
 }
 
+// Update the action keys button state based on current combo box selection
+void UpdateActionKeysButtonState(HWND hWnd) {
+    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+    HWND hAKeysButton = GetDlgItem(hWnd, IDC_BUTTON_AKEYS);
+    
+    if (!hCombo || !hAKeysButton) return;
+    
+    int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
+    
+    // Disable the A-Keys button if "NONE" is selected (index 0) or no selection
+    if (selectedIndex == CB_ERR || selectedIndex == 0) {
+        EnableWindow(hAKeysButton, FALSE);
+    } else {
+        EnableWindow(hAKeysButton, TRUE);
+    }
+}
+
 // Update app profile color boxes to show colors from selected profile
 void UpdateAppProfileColorBoxes(HWND hWnd) {
     HWND hAppColorBox = GetDlgItem(hWnd, IDC_BOX_APPCOLOR);
     HWND hAppHighlightColorBox = GetDlgItem(hWnd, IDC_BOX_APPHIGHLIGHTCOLOR);
+    HWND hAppActionColorBox = GetDlgItem(hWnd, IDC_BOX_APPACTIONCOLOR);
     
     if (hAppColorBox) {
         InvalidateRect(hAppColorBox, NULL, TRUE);
@@ -871,56 +941,9 @@ void UpdateAppProfileColorBoxes(HWND hWnd) {
         InvalidateRect(hAppHighlightColorBox, NULL, TRUE);
         UpdateWindow(hAppHighlightColorBox); // Force immediate redraw
     }
-}
-
-// Show color picker for app profile colors
-void ShowAppColorPicker(HWND hWnd, bool isHighlightColor) {
-    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
-    if (!hCombo) return;
-    
-    int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
-    if (selectedIndex == CB_ERR || selectedIndex == 0) {
-        // log to debug console
-		OutputDebugStringW(L"No valid profile selected for color change.\n");
-        return;
-    }
-    
-    // Get the selected app name
-    WCHAR appName[256];
-    SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
-    
-    // Get the current profile
-    AppColorProfile* profile = GetAppProfileByName(appName);
-    if (!profile) {
-        MessageBoxW(hWnd, L"Profile not found", L"Error", MB_OK | MB_ICONERROR);
-        return;
-    }
-    
-    // Get current color
-    COLORREF currentColor = isHighlightColor ? profile->appHighlightColor : profile->appColor;
-    
-    // Show color picker
-    CHOOSECOLOR cc;
-    ZeroMemory(&cc, sizeof(cc));
-    cc.lStructSize = sizeof(cc);
-    cc.hwndOwner = hWnd;
-    cc.rgbResult = currentColor;
-    COLORREF custColors[16] = {};
-    cc.lpCustColors = custColors;
-    cc.Flags = CC_FULLOPEN | CC_RGBINIT;
-    
-    if (ChooseColor(&cc)) {
-        // Update the profile color
-        if (isHighlightColor) {
-            UpdateAppProfileHighlightColor(appName, cc.rgbResult);
-            UpdateAppProfileHighlightColorInRegistry(appName, cc.rgbResult);
-        } else {
-            UpdateAppProfileColor(appName, cc.rgbResult);
-            UpdateAppProfileColorInRegistry(appName, cc.rgbResult);
-        }
-        
-        // Update the color boxes display
-        UpdateAppProfileColorBoxes(hWnd);
+    if (hAppActionColorBox) {
+        InvalidateRect(hAppActionColorBox, NULL, TRUE);
+        UpdateWindow(hAppActionColorBox); // Force immediate redraw
     }
 }
 
@@ -953,338 +976,3 @@ void UpdateLockKeysCheckbox(HWND hWnd) {
     }
 }
 
-// Callback function for the About dialog box
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    UNREFERENCED_PARAMETER(lParam);
-    switch (message)
-    {
-    case WM_INITDIALOG:
-    {
-        // Load and set the 64x64 small icon for About dialog
-        HICON hIcon = (HICON)LoadImage(
-            hInst,
-            MAKEINTRESOURCE(IDI_SMALL),
-            IMAGE_ICON,
-            64, 64,
-            LR_DEFAULTCOLOR
-        );
-        if (hIcon)
-        {
-            SendDlgItemMessage(hDlg, IDC_STATIC_ICON_ABOUT, STM_SETICON, (WPARAM)hIcon, 0);
-        }
-        return (INT_PTR)TRUE;
-    }
-    case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-        {
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
-        }
-        break;
-    }
-    return (INT_PTR)FALSE;
-}
-
-// Callback function for the Help dialog box
-INT_PTR CALLBACK Help(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    UNREFERENCED_PARAMETER(lParam);
-    switch (message)
-    {
-    case WM_INITDIALOG:
-    {
-        // Load and set the 256x256 main icon for Help dialog
-        HICON hIcon = (HICON)LoadImage(
-            hInst,
-            MAKEINTRESOURCE(IDI_SMARTLOGILED),
-            IMAGE_ICON,
-            256, 256,
-            LR_DEFAULTCOLOR
-        );
-        if (hIcon)
-        {
-            SendDlgItemMessage(hDlg, IDC_STATIC_ICON_HELP, STM_SETICON, (WPARAM)hIcon, 0);
-        }
-        return (INT_PTR)TRUE;
-    }
-    case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-        {
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
-        }
-        break;
-    }
-    return (INT_PTR)FALSE;
-}
-
-// Global variables for Keys dialog
-static std::vector<LogiLed::KeyName> currentHighlightKeys;
-static std::wstring currentAppNameForKeys;
-static HHOOK keysDialogHook = nullptr;
-
-// Low-level keyboard hook for the Keys dialog
-LRESULT CALLBACK KeysDialogKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode >= 0 && wParam == WM_KEYDOWN) {
-        KBDLLHOOKSTRUCT* pKeyStruct = (KBDLLHOOKSTRUCT*)lParam;
-        
-        // Convert virtual key to LogiLed key
-        LogiLed::KeyName logiKey = VirtualKeyToLogiLedKey(pKeyStruct->vkCode);
-        
-        // Check if key is already in the list
-        auto it = std::find(currentHighlightKeys.begin(), currentHighlightKeys.end(), logiKey);
-        
-        if (it != currentHighlightKeys.end()) {
-            // Key is in list, remove it
-            currentHighlightKeys.erase(it);
-        } else {
-            // Key is not in list, add it
-            currentHighlightKeys.push_back(logiKey);
-        }
-        
-        // Update the text field
-        HWND hEditKeys = FindWindow(nullptr, L"Configure Highlight Keys");
-        if (hEditKeys) {
-            hEditKeys = GetDlgItem(hEditKeys, IDC_EDIT_KEYS);
-            if (hEditKeys) {
-                std::wstring keysText = FormatHighlightKeysForDisplay(currentHighlightKeys);
-                SetWindowTextW(hEditKeys, keysText.c_str());
-            }
-        }
-        
-        // Prevent the key from being processed by other applications
-        return 1;
-    }
-    
-    return CallNextHookEx(keysDialogHook, nCode, wParam, lParam);
-}
-
-// Callback function for the Keys dialog box
-INT_PTR CALLBACK KeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    switch (message)
-    {
-    case WM_INITDIALOG:
-    {
-        // Get the app name and current keys from the selected profile
-        HWND hMainWnd = GetParent(hDlg);
-        HWND hCombo = GetDlgItem(hMainWnd, IDC_COMBO_APPPROFILE);
-        
-        if (hCombo) {
-            int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
-            if (selectedIndex > 0) { // Not "NONE"
-                WCHAR appName[256];
-                SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
-                currentAppNameForKeys = appName;
-                
-                // Get current highlight keys for this profile
-                AppColorProfile* profile = GetAppProfileByName(currentAppNameForKeys);
-                if (profile) {
-                    currentHighlightKeys = profile->highlightKeys;
-                } else {
-                    currentHighlightKeys.clear();
-                }
-                
-                // Display current keys in the text field
-                std::wstring keysText = FormatHighlightKeysForDisplay(currentHighlightKeys);
-                SetDlgItemTextW(hDlg, IDC_EDIT_KEYS, keysText.c_str());
-                
-                // Set up keyboard hook to capture key presses
-                keysDialogHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeysDialogKeyboardProc, GetModuleHandle(nullptr), 0);
-            }
-        }
-        
-        return (INT_PTR)TRUE;
-    }
-    case WM_COMMAND:
-        switch (LOWORD(wParam))
-        {
-        case IDC_BUTTON_RESET_KEYS:
-            // Clear all highlight keys
-            currentHighlightKeys.clear();
-            SetDlgItemTextW(hDlg, IDC_EDIT_KEYS, L"");
-            return (INT_PTR)TRUE;
-            
-        case IDC_BUTTON_DONE_KEYS:
-        case IDOK:
-            // Save the highlight keys and close dialog
-            if (!currentAppNameForKeys.empty()) {
-                UpdateAppProfileHighlightKeys(currentAppNameForKeys, currentHighlightKeys);
-                UpdateAppProfileHighlightKeysInRegistry(currentAppNameForKeys, currentHighlightKeys);
-            }
-            
-            // Remove keyboard hook
-            if (keysDialogHook) {
-                UnhookWindowsHookEx(keysDialogHook);
-                keysDialogHook = nullptr;
-            }
-            
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
-            
-        case IDCANCEL:
-            // Remove keyboard hook
-            if (keysDialogHook) {
-                UnhookWindowsHookEx(keysDialogHook);
-                keysDialogHook = nullptr;
-            }
-            
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
-        }
-        break;
-        
-    case WM_CLOSE:
-        // Remove keyboard hook
-        if (keysDialogHook) {
-            UnhookWindowsHookEx(keysDialogHook);
-            keysDialogHook = nullptr;
-        }
-        
-        EndDialog(hDlg, IDCANCEL);
-        return (INT_PTR)TRUE;
-    }
-    return (INT_PTR)FALSE;
-}
-
-// Show the Keys dialog
-void ShowKeysDialog(HWND hWnd) {
-    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
-    if (!hCombo) return;
-    
-    int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
-    if (selectedIndex == CB_ERR || selectedIndex == 0) {
-        MessageBoxW(hWnd, L"Please select an app profile first.", L"Keys Configuration", MB_OK | MB_ICONINFORMATION);
-        return;
-    }
-    
-    DialogBox(hInst, MAKEINTRESOURCE(IDD_KEYSBOX), hWnd, KeysDialog);
-}
-
-// Callback function for the Add Profile dialog box
-INT_PTR CALLBACK AddProfileDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    switch (message)
-    {
-    case WM_INITDIALOG:
-        {
-            // Get the combo box and populate it with running processes
-            HWND hCombo = GetDlgItem(hDlg, IDC_COMBO_APP_SELECTOR);
-            if (hCombo) {
-                // Clear the combo box first
-                SendMessage(hCombo, CB_RESETCONTENT, 0, 0);
-                
-                // Get visible running processes
-                std::vector<std::wstring> processes = GetVisibleRunningProcesses();
-                
-                // Get existing profiles to filter out apps that already have profiles
-                std::vector<AppColorProfile> existingProfiles = GetAppColorProfilesCopy();
-                
-                // Add processes to combo box, but filter out those that already have profiles
-                for (const auto& process : processes) {
-                    bool hasProfile = false;
-                    
-                    // Check if this process already has a profile (case-insensitive)
-                    for (const auto& profile : existingProfiles) {
-                        std::wstring lowerProcess = process;
-                        std::wstring lowerProfileApp = profile.appName;
-                        std::transform(lowerProcess.begin(), lowerProcess.end(), lowerProcess.begin(), ::towlower);
-                        std::transform(lowerProfileApp.begin(), lowerProfileApp.end(), lowerProfileApp.begin(), ::towlower);
-                        
-                        if (lowerProcess == lowerProfileApp) {
-                            hasProfile = true;
-                            break;
-                        }
-                    }
-                    
-                    // Only add to combo box if it doesn't already have a profile
-                    if (!hasProfile) {
-                        SendMessageW(hCombo, CB_ADDSTRING, 0, (LPARAM)process.c_str());
-                    }
-                }
-                
-                // Set focus to the combo box
-                SetFocus(hCombo);
-            }
-            return (INT_PTR)TRUE;
-        }
-    case WM_COMMAND:
-        switch (LOWORD(wParam))
-        {
-        case IDC_BUTTON_DONE_ADD_PROFILE:
-        case IDOK:
-            {
-                // Get the text from the combo box
-                HWND hCombo = GetDlgItem(hDlg, IDC_COMBO_APP_SELECTOR);
-                if (hCombo) {
-                    WCHAR appName[256];
-                    GetWindowTextW(hCombo, appName, sizeof(appName) / sizeof(WCHAR));
-                    
-                    // Check if something was entered
-                    if (wcslen(appName) == 0) {
-                        MessageBoxW(hDlg, L"Please enter an application name.", L"Add Profile", MB_OK | MB_ICONWARNING);
-                        return (INT_PTR)TRUE;
-                    }
-                    
-                    // Check if profile already exists (double-check since user can type manually)
-                    std::vector<AppColorProfile> profiles = GetAppColorProfilesCopy();
-                    bool exists = false;
-                    for (const auto& profile : profiles) {
-                        std::wstring lowerExisting = profile.appName;
-                        std::wstring lowerNew = appName;
-                        std::transform(lowerExisting.begin(), lowerExisting.end(), lowerExisting.begin(), ::towlower);
-                        std::transform(lowerNew.begin(), lowerNew.end(), lowerNew.begin(), ::towlower);
-                        
-                        if (lowerExisting == lowerNew) {
-                            exists = true;
-                            break;
-                        }
-                    }
-                    
-                    if (exists) {
-                        MessageBoxW(hDlg, L"Profile already exists for this application!", L"Add Profile", MB_OK | MB_ICONWARNING);
-                        return (INT_PTR)TRUE;
-                    }
-                    
-                    // Create the new profile with specified defaults
-                    std::wstring newAppName = appName;
-                    COLORREF appColor = RGB(0, 255, 255);      // Cyan
-                    COLORREF highlightColor = RGB(255, 0, 0);  // Red
-                    bool lockKeysEnabled = false;              // Lock keys feature off
-                    
-                    // Add the profile
-                    AddAppColorProfile(newAppName, appColor, lockKeysEnabled);
-                    
-                    // Get the added profile, set highlight color and save to registry
-                    AppColorProfile* newProfile = GetAppProfileByName(newAppName);
-                    if (newProfile) {
-                        newProfile->appHighlightColor = highlightColor;
-                        // highlightKeys is already empty by default
-                        AddAppProfileToRegistry(*newProfile);
-                    }
-                    
-                    // Close the dialog and refresh the main window
-                    EndDialog(hDlg, IDOK);
-                    
-                    // Refresh the combo box in the main window
-                    HWND hParent = GetParent(hDlg);
-                    if (hParent) {
-                        RefreshAppProfileCombo(hParent);
-                    }
-                }
-                return (INT_PTR)TRUE;
-            }
-            
-        case IDCANCEL:
-            EndDialog(hDlg, IDCANCEL);
-            return (INT_PTR)TRUE;
-        }
-        break;
-        
-    case WM_CLOSE:
-        EndDialog(hDlg, IDCANCEL);
-        return (INT_PTR)TRUE;
-    }
-    return (INT_PTR)FALSE;
-}

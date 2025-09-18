@@ -241,6 +241,9 @@ void ApplyProfileColorsInternal(AppColorProfile* profile) {
     // Apply highlight keys
     SetHighlightKeysColorWithProfile(profile);
     
+    // Apply action keys
+    SetActionKeysColorWithProfile(profile);
+    
     // Update hook state
     UpdateKeyboardHookState();
 }
@@ -579,6 +582,31 @@ void UpdateAppProfileHighlightColor(const std::wstring& appName, COLORREF newHig
     }
 }
 
+// Update app profile action color
+void UpdateAppProfileActionColor(const std::wstring& appName, COLORREF newActionColor) {
+    AppColorProfile* activeProfile = nullptr;
+    
+    // Phase 1: Update profile under lock
+    {
+        std::lock_guard<std::mutex> lock(appProfilesMutex);
+        
+        AppColorProfile* profile = FindProfileByNameInternal(appName);
+        if (profile) {
+            profile->appActionColor = newActionColor;
+            
+            // If this profile is currently displayed, we need to update action keys
+            if (profile->isProfileCurrInUse) {
+                activeProfile = profile;
+            }
+        }
+    } // Mutex released here
+    
+    // Phase 2: Apply action colors without holding mutex
+    if (activeProfile) {
+        SetActionKeysColorWithProfile(activeProfile);
+    }
+}
+
 // Update app profile lock keys enabled setting
 void UpdateAppProfileLockKeysEnabled(const std::wstring& appName, bool lockKeysEnabled) {
     AppColorProfile* activeProfile = nullptr;
@@ -630,6 +658,31 @@ void UpdateAppProfileHighlightKeys(const std::wstring& appName, const std::vecto
     } // Mutex released here
     
     // Phase 2: Apply highlight keys without holding mutex
+    if (activeProfile) {
+        ApplyProfileColorsInternal(activeProfile);
+    }
+}
+
+// Update app profile action keys
+void UpdateAppProfileActionKeys(const std::wstring& appName, const std::vector<LogiLed::KeyName>& actionKeys) {
+    AppColorProfile* activeProfile = nullptr;
+    
+    // Phase 1: Update profile under lock
+    {
+        std::lock_guard<std::mutex> lock(appProfilesMutex);
+        
+        AppColorProfile* profile = FindProfileByNameInternal(appName);
+        if (profile) {
+            profile->actionKeys = actionKeys;
+            
+            // If this profile is currently displayed, we need to update action keys
+            if (profile->isProfileCurrInUse) {
+                activeProfile = profile;
+            }
+        }
+    } // Mutex released here
+    
+    // Phase 2: Apply action keys without holding mutex
     if (activeProfile) {
         ApplyProfileColorsInternal(activeProfile);
     }

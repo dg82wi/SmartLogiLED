@@ -54,6 +54,9 @@
     <ClInclude Include="SmartLogiLED_Types.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="SmartLogiLED_Dialogs.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SmartLogiLED.cpp">
@@ -74,11 +77,9 @@
     <ClCompile Include="SmartLogiLED_ProcessMonitor.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="SmartLogiLED.rc">
-      <Filter>Ressourcendateien</Filter>
-    </ResourceCompile>
+    <ClCompile Include="SmartLogiLED_Dialogs.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="SmartLogiLED.ico">
@@ -96,5 +97,10 @@
     <None Include="GameProfiles\SmartLogiLED_ACMirage.ini">
       <Filter>AppProfiles</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="SmartLogiLED.rc">
+      <Filter>Ressourcendateien</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

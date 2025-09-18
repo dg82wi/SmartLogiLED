@@ -137,6 +137,7 @@
     <ClInclude Include="SmartLogiLED.h" />
     <ClInclude Include="SmartLogiLED_AppProfiles.h" />
     <ClInclude Include="SmartLogiLED_Config.h" />
+    <ClInclude Include="SmartLogiLED_Dialogs.h" />
     <ClInclude Include="SmartLogiLED_KeyMapping.h" />
     <ClInclude Include="SmartLogiLED_LockKeys.h" />
     <ClInclude Include="SmartLogiLED_ProcessMonitor.h" />
@@ -148,12 +149,10 @@
     <ClCompile Include="SmartLogiLED.cpp" />
     <ClCompile Include="SmartLogiLED_AppProfiles.cpp" />
     <ClCompile Include="SmartLogiLED_Config.cpp" />
+    <ClCompile Include="SmartLogiLED_Dialogs.cpp" />
     <ClCompile Include="SmartLogiLED_KeyMapping.cpp" />
     <ClCompile Include="SmartLogiLED_LockKeys.cpp" />
     <ClCompile Include="SmartLogiLED_ProcessMonitor.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="SmartLogiLED.rc" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="SmartLogiLED.ico" />
@@ -165,6 +164,9 @@
     <None Include="GameProfiles\SmartLogiLED_ACMirage.ini" />
     <None Include="LICENSE" />
     <None Include="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="SmartLogiLED.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

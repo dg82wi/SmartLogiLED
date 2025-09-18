@@ -137,6 +137,9 @@ void AddAppProfileToRegistry(const AppColorProfile& profile) {
         d = static_cast<DWORD>(profile.appHighlightColor);
         RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_HIGHLIGHT_COLOR, 0, REG_DWORD,
                        reinterpret_cast<const BYTE*>(&d), sizeof(d));
+        d = static_cast<DWORD>(profile.appActionColor);
+        RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_ACTION_COLOR, 0, REG_DWORD,
+                       reinterpret_cast<const BYTE*>(&d), sizeof(d));
         d = profile.lockKeysEnabled ? 1u : 0u;
         RegSetValueExW(hAppKey, REGISTRY_VALUE_LOCK_KEYS_ENABLED, 0, REG_DWORD,
                        reinterpret_cast<const BYTE*>(&d), sizeof(d));
@@ -150,6 +153,19 @@ void AddAppProfileToRegistry(const AppColorProfile& profile) {
         } else {
             RegSetValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, 0, REG_BINARY, nullptr, 0);
         }
+        
+        // Save action keys
+        if (!profile.actionKeys.empty()) {
+            std::vector<DWORD> data;
+            data.reserve(profile.actionKeys.size());
+            for (auto k : profile.actionKeys) data.push_back(static_cast<DWORD>(k));
+            RegSetValueExW(hAppKey, REGISTRY_VALUE_ACTION_KEYS, 0, REG_BINARY,
+                           reinterpret_cast<const BYTE*>(data.data()),
+                           static_cast<DWORD>(data.size() * sizeof(DWORD)));
+        } else {
+            RegSetValueExW(hAppKey, REGISTRY_VALUE_ACTION_KEYS, 0, REG_BINARY, nullptr, 0);
+        }
+        
         RegCloseKey(hAppKey);
     }
     RegCloseKey(hProfilesKey);
@@ -222,6 +238,9 @@ void LoadAppProfilesFromRegistry() {
                 d = 0; cb = sizeof(DWORD); type = 0;
                 if (RegQueryValueExW(hAppKey, REGISTRY_VALUE_APP_HIGHLIGHT_COLOR, NULL, &type, reinterpret_cast<LPBYTE>(&d), &cb) == ERROR_SUCCESS && type == REG_DWORD)
                     p.appHighlightColor = static_cast<COLORREF>(d);
+                d = 0; cb = sizeof(DWORD); type = 0;
+                if (RegQueryValueExW(hAppKey, REGISTRY_VALUE_APP_ACTION_COLOR, NULL, &type, reinterpret_cast<LPBYTE>(&d), &cb) == ERROR_SUCCESS && type == REG_DWORD)
+                    p.appActionColor = static_cast<COLORREF>(d);
                 d = 1; cb = sizeof(DWORD); type = 0;
                 if (RegQueryValueExW(hAppKey, REGISTRY_VALUE_LOCK_KEYS_ENABLED, NULL, &type, reinterpret_cast<LPBYTE>(&d), &cb) == ERROR_SUCCESS && type == REG_DWORD)
                     p.lockKeysEnabled = (d != 0);
@@ -234,6 +253,18 @@ void LoadAppProfilesFromRegistry() {
                         for (DWORD v : data) p.highlightKeys.push_back(static_cast<LogiLed::KeyName>(v));
                     }
                 }
+                
+                // Load action keys
+                dataSize = 0; type = 0;
+                if (RegQueryValueExW(hAppKey, REGISTRY_VALUE_ACTION_KEYS, NULL, &type, NULL, &dataSize) == ERROR_SUCCESS && type == REG_BINARY && dataSize > 0) {
+                    std::vector<DWORD> data(dataSize / sizeof(DWORD));
+                    if (RegQueryValueExW(hAppKey, REGISTRY_VALUE_ACTION_KEYS, NULL, &type, reinterpret_cast<LPBYTE>(data.data()), &dataSize) == ERROR_SUCCESS) {
+                        p.actionKeys.clear();
+                        p.actionKeys.reserve(data.size());
+                        for (DWORD v : data) p.actionKeys.push_back(static_cast<LogiLed::KeyName>(v));
+                    }
+                }
+                
                 // Initialize runtime flags properly
                 p.isAppRunning = IsAppRunning(p.appName);
                 p.isProfileCurrInUse = false; // Will be set correctly by CheckRunningAppsAndUpdateColors()
@@ -280,6 +311,21 @@ void UpdateAppProfileHighlightColorInRegistry(const std::wstring& appName, COLOR
     }
 }
 
+// Update specific app profile action color in registry
+void UpdateAppProfileActionColorInRegistry(const std::wstring& appName, COLORREF newActionColor) {
+    HKEY hProfilesKey = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+        HKEY hAppKey = nullptr;
+        if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
+            DWORD d = static_cast<DWORD>(newActionColor);
+            RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_ACTION_COLOR, 0, REG_DWORD,
+                           reinterpret_cast<const BYTE*>(&d), sizeof(d));
+            RegCloseKey(hAppKey);
+        }
+        RegCloseKey(hProfilesKey);
+    }
+}
+
 // Update specific app profile lock keys enabled setting in registry
 void UpdateAppProfileLockKeysEnabledInRegistry(const std::wstring& appName, bool lockKeysEnabled) {
     HKEY hProfilesKey = nullptr;
@@ -310,6 +356,28 @@ void UpdateAppProfileHighlightKeysInRegistry(const std::wstring& appName, const 
                                static_cast<DWORD>(data.size() * sizeof(DWORD)));
             } else {
                 RegSetValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, 0, REG_BINARY, nullptr, 0);
+            }
+            RegCloseKey(hAppKey);
+        }
+        RegCloseKey(hProfilesKey);
+    }
+}
+
+// Update specific app profile action keys in registry
+void UpdateAppProfileActionKeysInRegistry(const std::wstring& appName, const std::vector<LogiLed::KeyName>& actionKeys) {
+    HKEY hProfilesKey = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+        HKEY hAppKey = nullptr;
+        if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
+            if (!actionKeys.empty()) {
+                std::vector<DWORD> data;
+                data.reserve(actionKeys.size());
+                for (auto k : actionKeys) data.push_back(static_cast<DWORD>(k));
+                RegSetValueExW(hAppKey, REGISTRY_VALUE_ACTION_KEYS, 0, REG_BINARY,
+                               reinterpret_cast<const BYTE*>(data.data()),
+                               static_cast<DWORD>(data.size() * sizeof(DWORD)));
+            } else {
+                RegSetValueExW(hAppKey, REGISTRY_VALUE_ACTION_KEYS, 0, REG_BINARY, nullptr, 0);
             }
             RegCloseKey(hAppKey);
         }
@@ -386,6 +454,8 @@ void UpdateOrCreateProfileIniFile(const std::wstring& filename, const AppColorPr
                                     newContent << L"AppColor=" << std::hex << std::setfill(L'0') << std::setw(6) << (profile.appColor & 0xFFFFFF) << L"\n";
                                 } else if (key == L"AppHighlightColor") {
                                     newContent << L"AppHighlightColor=" << std::hex << std::setfill(L'0') << std::setw(6) << (profile.appHighlightColor & 0xFFFFFF) << L"\n";
+                                } else if (key == L"AppActionColor") {
+                                    newContent << L"AppActionColor=" << std::hex << std::setfill(L'0') << std::setw(6) << (profile.appActionColor & 0xFFFFFF) << L"\n";
                                 } else if (key == L"LockKeysEnabled") {
                                     newContent << L"LockKeysEnabled=" << (profile.lockKeysEnabled ? L"1" : L"0") << L"\n";
                                 } else if (key == L"HighlightKeys") {
@@ -394,6 +464,15 @@ void UpdateOrCreateProfileIniFile(const std::wstring& filename, const AppColorPr
                                         for (size_t i = 0; i < profile.highlightKeys.size(); ++i) {
                                             if (i > 0) newContent << L",";
                                             newContent << LogiLedKeyToConfigName(profile.highlightKeys[i]);
+                                        }
+                                    }
+                                    newContent << L"\n";
+                                } else if (key == L"ActionKeys") {
+                                    newContent << L"ActionKeys=";
+                                    if (!profile.actionKeys.empty()) {
+                                        for (size_t i = 0; i < profile.actionKeys.size(); ++i) {
+                                            if (i > 0) newContent << L",";
+                                            newContent << LogiLedKeyToConfigName(profile.actionKeys[i]);
                                         }
                                     }
                                     newContent << L"\n";
@@ -428,6 +507,7 @@ void UpdateOrCreateProfileIniFile(const std::wstring& filename, const AppColorPr
             newContent << L"AppName=" << profile.appName << L"\n";
             newContent << L"AppColor=" << std::hex << std::setfill(L'0') << std::setw(6) << (profile.appColor & 0xFFFFFF) << L"\n";
             newContent << L"AppHighlightColor=" << std::hex << std::setfill(L'0') << std::setw(6) << (profile.appHighlightColor & 0xFFFFFF) << L"\n";
+            newContent << L"AppActionColor=" << std::hex << std::setfill(L'0') << std::setw(6) << (profile.appActionColor & 0xFFFFFF) << L"\n";
             newContent << L"LockKeysEnabled=" << (profile.lockKeysEnabled ? L"1" : L"0") << L"\n";
             if (!profile.highlightKeys.empty()) {
                 newContent << L"HighlightKeys=";
@@ -439,14 +519,25 @@ void UpdateOrCreateProfileIniFile(const std::wstring& filename, const AppColorPr
             } else {
                 newContent << L"HighlightKeys=\n";
             }
+            if (!profile.actionKeys.empty()) {
+                newContent << L"ActionKeys=";
+                for (size_t i = 0; i < profile.actionKeys.size(); ++i) {
+                    if (i > 0) newContent << L",";
+                    newContent << LogiLedKeyToConfigName(profile.actionKeys[i]);
+                }
+                newContent << L"\n";
+            } else {
+                newContent << L"ActionKeys=\n";
+            }
             newContent << L"\n";
             newContent << L"; SmartLogiLED Profile Export\n";
             newContent << L"; Generated by " << SMARTLOGILED_PRODUCT_NAME << L" v" << SMARTLOGILED_VERSION_STRING << L" (" << SMARTLOGILED_BUILD_TYPE << L")\n";
             newContent << L"; " << SMARTLOGILED_COPYRIGHT << L"\n";
             newContent << L"; \n";
-            newContent << L"; AppColor and AppHighlightColor are in hexadecimal RGB format (e.g., FF0000 = Red)\n";
+            newContent << L"; AppColor, AppHighlightColor, and AppActionColor are in hexadecimal RGB format (e.g., FF0000 = Red)\n";
             newContent << L"; LockKeysEnabled: 1 = enabled, 0 = disabled\n";
             newContent << L"; HighlightKeys: Comma-separated list of key names to highlight\n";
+            newContent << L"; ActionKeys: Comma-separated list of key names for actions\n";
         }
     }
     
@@ -737,6 +828,7 @@ void ImportProfileFromIniFile(HWND hWnd) {
                     // Initialize with defaults
                     importedProfile.appColor = RGB(0, 255, 255);
                     importedProfile.appHighlightColor = RGB(255, 255, 255);
+                    importedProfile.appActionColor = RGB(255, 255, 0);
                     importedProfile.lockKeysEnabled = true;
                     importedProfile.isAppRunning = false;
                     importedProfile.isProfileCurrInUse = false;
@@ -789,6 +881,13 @@ void ImportProfileFromIniFile(HWND hWnd) {
                                     } catch (...) {
                                         // Keep default color on parse error
                                     }
+                                } else if (key == L"AppActionColor") {
+                                    try {
+                                        unsigned long colorValue = std::wcstoul(value.c_str(), nullptr, 16);
+                                        importedProfile.appActionColor = static_cast<COLORREF>(colorValue);
+                                    } catch (...) {
+                                        // Keep default color on parse error
+                                    }
                                 } else if (key == L"LockKeysEnabled") {
                                     importedProfile.lockKeysEnabled = (value == L"1");
                                 } else if (key == L"HighlightKeys") {
@@ -810,70 +909,80 @@ void ImportProfileFromIniFile(HWND hWnd) {
                                             }
                                         }
                                     }
+                                } else if (key == L"ActionKeys") {
+                                    if (!value.empty()) {
+                                        // Parse comma-separated key names
+                                        std::wstringstream keyStream(value);
+                                        std::wstring keyName;
+                                        
+                                        while (std::getline(keyStream, keyName, L',')) {
+                                            // Trim whitespace
+                                            keyName.erase(0, keyName.find_first_not_of(L" \t"));
+                                            keyName.erase(keyName.find_last_not_of(L" \t") + 1);
+                                            
+                                            if (!keyName.empty()) {
+                                                LogiLed::KeyName logiKey = ConfigNameToLogiLedKey(keyName);
+                                                if (logiKey != LogiLed::KeyName::ESC || keyName == L"ESC") {
+                                                    importedProfile.actionKeys.push_back(logiKey);
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                } else {
-                    errorMessage = L"Failed to convert file encoding";
                 }
-            } else {
-                errorMessage = L"Failed to read file content";
             }
-        } else {
-            errorMessage = L"File is empty or invalid";
         }
         CloseHandle(hFile);
-    } else {
-        errorMessage = L"Failed to open file";
     }
     
-    if (!profileValid || importedProfile.appName.empty()) {
-        std::wstring message = L"Invalid profile file format";
-        if (!errorMessage.empty()) {
-            message += L": " + errorMessage;
+    // If the profile is valid, add or update it in the registry
+    if (profileValid) {
+        // Check if profile already exists
+        AppColorProfile* existingProfile = GetAppProfileByName(importedProfile.appName);
+        if (existingProfile) {
+            std::wstring message = L"A profile for '" + importedProfile.appName + L"' already exists.\n\nDo you want to overwrite it?";
+            int result = MessageBoxW(hWnd, message.c_str(), L"Profile Exists", MB_YESNO | MB_ICONQUESTION);
+            
+            if (result == IDNO) {
+                return; // User cancelled or chose not to overwrite
+            }
+            
+            // Update existing profile
+            existingProfile->appColor = importedProfile.appColor;
+            existingProfile->appHighlightColor = importedProfile.appHighlightColor;
+            existingProfile->appActionColor = importedProfile.appActionColor;
+            existingProfile->lockKeysEnabled = importedProfile.lockKeysEnabled;
+            existingProfile->highlightKeys = importedProfile.highlightKeys;
+            existingProfile->actionKeys = importedProfile.actionKeys;
+            
+            // Update in registry
+            UpdateAppProfileColorInRegistry(importedProfile.appName, importedProfile.appColor);
+            UpdateAppProfileHighlightColorInRegistry(importedProfile.appName, importedProfile.appHighlightColor);
+            UpdateAppProfileActionColorInRegistry(importedProfile.appName, importedProfile.appActionColor);
+            UpdateAppProfileLockKeysEnabledInRegistry(importedProfile.appName, importedProfile.lockKeysEnabled);
+            UpdateAppProfileHighlightKeysInRegistry(importedProfile.appName, importedProfile.highlightKeys);
+            UpdateAppProfileActionKeysInRegistry(importedProfile.appName, importedProfile.actionKeys);
+            
+        } else {
+            // Add new profile
+            importedProfile.isAppRunning = IsAppRunning(importedProfile.appName);
+            AddAppColorProfile(importedProfile.appName, importedProfile.appColor, importedProfile.lockKeysEnabled);
+            
+            // Update the highlight color, action color and keys (AddAppColorProfile doesn't handle these)
+            UpdateAppProfileHighlightColor(importedProfile.appName, importedProfile.appHighlightColor);
+            UpdateAppProfileActionColor(importedProfile.appName, importedProfile.appActionColor);
+            UpdateAppProfileHighlightKeys(importedProfile.appName, importedProfile.highlightKeys);
+            UpdateAppProfileActionKeys(importedProfile.appName, importedProfile.actionKeys);
+            
+            // Save to registry
+            AppColorProfile* newProfile = GetAppProfileByName(importedProfile.appName);
+            if (newProfile) {
+                AddAppProfileToRegistry(*newProfile);
+            }
         }
-        MessageBoxW(hWnd, message.c_str(), L"Import Error", MB_OK | MB_ICONERROR);
-        return;
-    }
-    
-    // Check if profile already exists
-    AppColorProfile* existingProfile = GetAppProfileByName(importedProfile.appName);
-    if (existingProfile) {
-        std::wstring message = L"A profile for '" + importedProfile.appName + L"' already exists.\n\nDo you want to overwrite it?";
-        int result = MessageBoxW(hWnd, message.c_str(), L"Profile Exists", MB_YESNO | MB_ICONQUESTION);
-        
-        if (result == IDNO) {
-            return; // User cancelled or chose not to overwrite
-        }
-        
-        // Update existing profile
-        existingProfile->appColor = importedProfile.appColor;
-        existingProfile->appHighlightColor = importedProfile.appHighlightColor;
-        existingProfile->lockKeysEnabled = importedProfile.lockKeysEnabled;
-        existingProfile->highlightKeys = importedProfile.highlightKeys;
-        
-        // Update in registry
-        UpdateAppProfileColorInRegistry(importedProfile.appName, importedProfile.appColor);
-        UpdateAppProfileHighlightColorInRegistry(importedProfile.appName, importedProfile.appHighlightColor);
-        UpdateAppProfileLockKeysEnabledInRegistry(importedProfile.appName, importedProfile.lockKeysEnabled);
-        UpdateAppProfileHighlightKeysInRegistry(importedProfile.appName, importedProfile.highlightKeys);
-        
-    } else {
-        // Add new profile
-        importedProfile.isAppRunning = IsAppRunning(importedProfile.appName);
-        AddAppColorProfile(importedProfile.appName, importedProfile.appColor, importedProfile.lockKeysEnabled);
-        
-        // Update the highlight color and keys (AddAppColorProfile doesn't handle这些)
-        UpdateAppProfileHighlightColor(importedProfile.appName, importedProfile.appHighlightColor);
-        UpdateAppProfileHighlightKeys(importedProfile.appName, importedProfile.highlightKeys);
-        
-        // Save to registry
-        AppColorProfile* newProfile = GetAppProfileByName(importedProfile.appName);
-        if (newProfile) {
-            AddAppProfileToRegistry(*newProfile);
-        }
-        
     }
     
     // Refresh the UI
