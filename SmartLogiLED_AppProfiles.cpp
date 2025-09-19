@@ -81,6 +81,20 @@ std::vector<AppColorProfile>::iterator FindProfileIteratorInternal(const std::ws
 // INTERNAL HELPER FUNCTIONS (ASSUME MUTEX IS ALREADY LOCKED)
 // ======================================================================
 
+// Helper function to remove keys from a target list that are present in the source list (INTERNAL - NO LOCK)
+void RemoveKeysFromListInternal(std::vector<LogiLed::KeyName>& targetList, const std::vector<LogiLed::KeyName>& sourceList) {
+    // Note: This function assumes the appProfilesMutex is already locked by the caller
+    
+    // Remove any keys from targetList that are present in sourceList
+    targetList.erase(
+        std::remove_if(targetList.begin(), targetList.end(),
+            [&sourceList](const LogiLed::KeyName& key) {
+                return std::find(sourceList.begin(), sourceList.end(), key) != sourceList.end();
+            }),
+        targetList.end()
+    );
+}
+
 // Enhanced helper function to manage activation history (INTERNAL - NO LOCK)
 void UpdateActivationHistoryInternal(const std::wstring& profileName) {
     // Note: This function assumes the appProfilesMutex is already locked by the caller
@@ -650,6 +664,9 @@ void UpdateAppProfileHighlightKeys(const std::wstring& appName, const std::vecto
         if (profile) {
             profile->highlightKeys = highlightKeys;
             
+            // Remove any keys that are now in highlightKeys from actionKeys to prevent conflicts
+            RemoveKeysFromListInternal(profile->actionKeys, highlightKeys);
+            
             // If this profile is currently displayed, we need to update highlight keys
             if (profile->isProfileCurrInUse) {
                 activeProfile = profile;
@@ -674,6 +691,9 @@ void UpdateAppProfileActionKeys(const std::wstring& appName, const std::vector<L
         AppColorProfile* profile = FindProfileByNameInternal(appName);
         if (profile) {
             profile->actionKeys = actionKeys;
+            
+            // Remove any keys that are now in actionKeys from highlightKeys to prevent conflicts
+            RemoveKeysFromListInternal(profile->highlightKeys, actionKeys);
             
             // If this profile is currently displayed, we need to update action keys
             if (profile->isProfileCurrInUse) {

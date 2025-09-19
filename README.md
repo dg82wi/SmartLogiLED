@@ -1,6 +1,6 @@
 ﻿# SmartLogiLED
 
-A sophisticated Windows application that provides intelligent RGB keyboard lighting control for Logitech keyboards, featuring application-specific color profiles, individual key highlighting, lock key visualization, and comprehensive profile management with export/import capabilities.
+A sophisticated Windows application that provides intelligent RGB keyboard lighting control for Logitech keyboards, featuring application-specific color profiles, individual key highlighting, action key assignments, lock key visualization, and comprehensive profile management with export/import capabilities.
 
 ## Features Overview
 
@@ -8,7 +8,7 @@ A sophisticated Windows application that provides intelligent RGB keyboard light
 - **Dynamic Lock Key Colors**: Customize RGB colors for NumLock, CapsLock, and ScrollLock keys
 - **Real-time State Updates**: Lock key colors change instantly when toggled via global keyboard hook
 - **Per-Application Control**: Enable or disable lock key visualization for specific applications
-- **Intelligent State Management**: Lock keys respect application profile settings and highlight configurations
+- **Intelligent State Management**: Lock keys respect application profile settings and highlight/action key configurations
 
 ### 🎯 Application-Specific Profiles
 - **Smart App Detection**: Automatically detects visible applications with main windows (excludes background processes)
@@ -16,10 +16,11 @@ A sophisticated Windows application that provides intelligent RGB keyboard light
 - **Priority-Based Handling**: Most recently activated monitored app takes precedence with intelligent fallback
 - **Persistent Settings**: All profiles automatically saved to Windows registry with real-time updates
 
-### 🎨 Individual Key Highlighting
-- **Interactive Key Configuration**: Press keys to add/remove them from highlight lists via intuitive dialog
-- **Custom Highlight Colors**: Each profile supports separate highlight colors for selected keys
-- **Lock Key Integration**: Highlighted lock keys intelligently blend with lock state visualization
+### 🎨 Individual Key Highlighting & Actions
+- **Interactive Key Configuration**: Press keys to add/remove them from highlight or action lists via intuitive dialogs
+- **Custom Colors**: Each profile supports separate colors for highlight keys and action keys
+- **Mutual Exclusivity**: Keys automatically removed from one list when added to another, preventing conflicts
+- **Lock Key Integration**: Highlighted/action lock keys intelligently blend with lock state visualization
 - **Visual Feedback**: Real-time preview of key configurations with immediate application
 
 ### ⚙️ Advanced Profile Management
@@ -77,16 +78,22 @@ The lock key system provides visual feedback for NumLock, CapsLock, and ScrollLo
 3. Configure profile settings:
    - **App Color**: Primary keyboard color when application is active
    - **Highlight Color**: Color for individually highlighted keys
+   - **Action Color**: Color for action keys (separate from highlight keys)
    - **Lock Keys**: Toggle lock key visualization for this application
 
-#### Managing Highlight Keys
+#### Managing Highlight and Action Keys
 1. Select a profile from the dropdown (must not be "NONE")
-2. Click the **"Keys"** button to open key configuration dialog
-3. Press keys to add/remove them from the highlight list
-4. Use **"Reset"** to clear all highlighted keys
-5. Click **"Done"** to save configuration
+2. Click the **"Highlight Keys"** button to configure keys that should be highlighted
+3. Click the **"Action Keys"** button to configure keys for actions/shortcuts
+4. **Mutual Exclusivity**: Adding a key to one list automatically removes it from the other
+5. Press keys in the configuration dialog to add/remove them from the respective lists
+6. Use **"Reset"** to clear all keys in the current list
+7. Click **"Done"** to save configuration
 
-The highlight system intelligently handles lock keys - if a lock key is highlighted and lock keys are enabled for the profile, the lock state color takes precedence when active.
+The key management system intelligently handles conflicts:
+- **No Overlap**: Keys cannot exist in both highlight and action lists simultaneously
+- **Priority**: When a key is added to one list, it's automatically removed from the other
+- **Lock Key Handling**: If a lock key is highlighted/actionized and lock keys are enabled for the profile, the lock state color takes precedence when active.
 
 #### Profile Priority System
 When multiple monitored applications are running:
@@ -112,11 +119,13 @@ When multiple monitored applications are running:
 AppName=notepad.exe
 AppColor=FFFF00
 AppHighlightColor=FF0000
+AppActionColor=00FF00
 LockKeysEnabled=1
-HighlightKeys=F1,F2,CAPS_LOCK,NUM_LOCK
+HighlightKeys=F1,F2,CAPS_LOCK
+ActionKeys=F3,F4,NUM_LOCK
 
-; Profile exported by SmartLogiLED v3.0.0
-; Compatible with SmartLogiLED v2.0.0 and later
+; Profile exported by SmartLogiLED v3.1.0
+; Compatible with SmartLogiLED v3.0.0 and later
 ```
 
 ### System Tray Features
@@ -136,6 +145,7 @@ HighlightKeys=F1,F2,CAPS_LOCK,NUM_LOCK
 ├── SmartLogiLED_AppProfiles.cpp # Application monitoring and profile management  
 ├── SmartLogiLED_Config.cpp   # Registry persistence and configuration
 ├── SmartLogiLED_KeyMapping.cpp # Key mapping and conversion utilities
+├── SmartLogiLED_IniFiles.cpp # Profile export/import functionality
 ├── Resource files            # UI resources and version information
 └── Headers and project files
 ```
@@ -164,9 +174,11 @@ HKEY_CURRENT_USER\Software\SmartLogiLED\
 └── AppProfiles\
     └── [ApplicationName]\
         ├── AppColor (DWORD)
-        ├── AppHighlightColor (DWORD)  
+        ├── AppHighlightColor (DWORD)
+        ├── AppActionColor (DWORD)
         ├── LockKeysEnabled (DWORD)
-        └── HighlightKeys (BINARY array)
+        ├── HighlightKeys (BINARY array)
+        └── ActionKeys (BINARY array)
 ```
 
 ### Application Monitoring Logic
@@ -185,7 +197,7 @@ Debug builds provide comprehensive logging via `OutputDebugStringW()`:
 - Application start/stop detection events
 - Profile state transitions and handoff logic
 - Keyboard hook installation and key detection
-- Color application and highlight key processing
+- Color application and highlight/action key processing
 - Registry operations and error conditions
 
 ## Troubleshooting Guide
@@ -219,13 +231,14 @@ Debug builds provide comprehensive logging via `OutputDebugStringW()`:
 • Check profile settings - lock keys might be disabled
 ```
 
-**❗ Highlight keys not working properly**
+**❗ Highlight/Action keys not working properly**
 ```
 💡 Solutions:
-• Ensure highlight color differs from app color for visibility
-• Verify keys are properly configured using "Keys" button
+• Ensure highlight/action colors differ from app color for visibility
+• Verify keys are properly configured using respective "Keys" buttons
 • Check that profile is currently active (shown in dropdown)
-• Lock keys override highlight colors when in active state
+• Lock keys override highlight/action colors when in active state
+• Remember keys are mutually exclusive between highlight and action lists
 ```
 
 **❗ Export/Import issues**
@@ -233,7 +246,7 @@ Debug builds provide comprehensive logging via `OutputDebugStringW()`:
 💡 Solutions:
 • Verify write permissions to export destination folder
 • Check INI file format matches expected structure
-• Ensure key names in HighlightKeys field are valid
+• Ensure key names in HighlightKeys/ActionKeys fields are valid
 • Try importing to different profile name if conflicts occur
 ```
 
@@ -287,7 +300,29 @@ struct AppColorProfile {
 
 ## Version History
 
-### 🚀 v3.0.0 - Current Release
+### 🚀 v3.1.0 - Current Release
+**Action Keys and Enhanced Key Management**
+
+#### ✨ New Features
+- **Action Key System**: Separate action keys with dedicated colors for shortcuts and special functions
+- **Mutual Key Exclusivity**: Keys automatically removed from one list when added to another, preventing conflicts
+- **Enhanced Key Management**: Improved key configuration dialogs with separate highlight and action key controls
+- **Extended Export/Import**: INI files now include action keys and action colors for complete profile sharing
+
+#### 🔧 Improvements
+- **Intelligent Key Handling**: Smart conflict resolution when keys are added to different lists
+- **Enhanced UI Feedback**: Clear visual indicators for key assignments and conflicts
+- **Thread-Safe Key Updates**: Improved mutex protection for key list modifications
+- **Registry Persistence**: Action keys and colors properly stored and restored from Windows registry
+
+#### 📚 Documentation
+- **Updated Usage Guide**: Comprehensive documentation for action key functionality
+- **Enhanced Troubleshooting**: Additional solutions for key assignment conflicts
+- **Technical Details**: Detailed explanation of mutual exclusivity implementation
+
+---
+
+### v3.0.0
 **Major Feature Release - Complete Profile Management Overhaul**
 
 #### ✨ New Features

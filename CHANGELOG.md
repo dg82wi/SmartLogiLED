@@ -5,7 +5,38 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - Current Release
+## [3.1.0] - Current Release
+
+### ✨ Added - Action Keys and Enhanced Key Management
+- **Action Key System**: Separate action keys with dedicated colors for shortcuts and special functions
+- **Mutual Key Exclusivity**: Keys automatically removed from one list when added to another, preventing conflicts
+- **Enhanced Key Management**: Improved key configuration dialogs with separate highlight and action key controls
+- **Extended Export/Import**: INI files now include action keys and action colors for complete profile sharing
+- **AppActionColor Support**: New color property for action keys in profiles and registry storage
+
+### 🔧 Improved
+- **Intelligent Key Handling**: Smart conflict resolution when keys are added to different lists
+- **Enhanced UI Feedback**: Clear visual indicators for key assignments and conflicts
+- **Thread-Safe Key Updates**: Improved mutex protection for key list modifications with `RemoveKeysFromListInternal()` helper
+- **Registry Persistence**: Action keys and colors properly stored and restored from Windows registry
+- **INI File Format**: Enhanced export/import with action key data preservation and backward compatibility
+
+### 🐛 Fixed
+- **Key List Conflicts**: Eliminated possibility of keys existing in both highlight and action lists simultaneously
+- **Profile State Consistency**: Improved thread-safe updates when modifying key assignments
+- **Color Application**: Proper handling of action key colors alongside highlight and lock key colors
+
+### 📚 Documentation
+- **Updated Usage Guide**: Comprehensive documentation for action key functionality and mutual exclusivity
+- **Enhanced Troubleshooting**: Additional solutions for key assignment conflicts and color visibility
+- **Technical Details**: Detailed explanation of mutual exclusivity implementation and thread safety
+
+### 🔧 Technical Changes
+- **Internal Optimizations**: Added `RemoveKeysFromListInternal()` helper function for efficient key conflict resolution
+- **Enhanced Error Handling**: Better validation of key assignments during profile updates
+- **Memory Efficiency**: Optimized key list management with std::remove_if and erase idiom
+
+## [3.0.0]
 
 ### ✨ Added - Major Feature Release
 - **Complete GUI Profile Management**: Intuitive add/remove functionality with visual indicators

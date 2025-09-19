@@ -11,6 +11,7 @@
 #include "framework.h"
 #include "SmartLogiLED.h"
 #include "SmartLogiLED_Config.h"
+#include "SmartLogiLED_IniFiles.h"
 #include "SmartLogiLED_LockKeys.h"
 #include "SmartLogiLED_AppProfiles.h"
 #include "SmartLogiLED_ProcessMonitor.h"

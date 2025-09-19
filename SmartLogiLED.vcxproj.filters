@@ -57,6 +57,9 @@
     <ClInclude Include="SmartLogiLED_Dialogs.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="SmartLogiLED_IniFiles.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SmartLogiLED.cpp">
@@ -78,6 +81,9 @@
       <Filter>Quelldateien</Filter>
     </ClCompile>
     <ClCompile Include="SmartLogiLED_Dialogs.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="SmartLogiLED_IniFiles.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
   </ItemGroup>

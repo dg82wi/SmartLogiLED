@@ -1,11 +1,11 @@
-//Von Microsoft Visual C++ generiertes Ressourcenskript.
+// Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
 //
-// Aus der TEXTINCLUDE-Ressource generiert.
+// Generated from the TEXTINCLUDE 2 resource.
 //
 #ifndef APSTUDIO_INVOKED
 #include "targetver.h"
@@ -13,26 +13,25 @@
 #define APSTUDIO_HIDDEN_SYMBOLS
 #include "windows.h"
 #undef APSTUDIO_HIDDEN_SYMBOLS
+
 /////////////////////////////////////////////////////////////////////////////
 #undef APSTUDIO_READONLY_SYMBOLS
 
-// Version constants for resource file
-#define SMARTLOGILED_VERSION_MAJOR      3
-#define SMARTLOGILED_VERSION_MINOR      0
-#define SMARTLOGILED_VERSION_PATCH      0
-#define SMARTLOGILED_VERSION_BUILD      0
+/////////////////////////////////////////////////////////////////////////////
+// German (Germany) resources
 
 #if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_DEU)
-LANGUAGE 7, 1
+LANGUAGE LANG_GERMAN, SUBLANG_GERMAN
+#pragma code_page(1252)
 
 /////////////////////////////////////////////////////////////////////////////
 //
-// Version Info
+// Version
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION SMARTLOGILED_VERSION_MAJOR,SMARTLOGILED_VERSION_MINOR,SMARTLOGILED_VERSION_PATCH,SMARTLOGILED_VERSION_BUILD
- PRODUCTVERSION SMARTLOGILED_VERSION_MAJOR,SMARTLOGILED_VERSION_MINOR,SMARTLOGILED_VERSION_PATCH,SMARTLOGILED_VERSION_BUILD
+ FILEVERSION 3,1,0,0
+ PRODUCTVERSION 3,1,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -49,12 +48,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Günter DANKL"
             VALUE "FileDescription", "SmartLogiLED - Advanced Logitech RGB Keyboard Controller"
-            VALUE "FileVersion", "3.0.0.0"
+            VALUE "FileVersion", "3.1.0.0"
             VALUE "InternalName", "SmartLogiLED"
             VALUE "LegalCopyright", "Copyright (c) 2025 Günter DANKL"
             VALUE "OriginalFilename", "SmartLogiLED.exe"
             VALUE "ProductName", "SmartLogiLED"
-            VALUE "ProductVersion", "3.0.0.0"
+            VALUE "ProductVersion", "3.1.0.0"
         END
     END
     BLOCK "VarFileInfo"
@@ -63,45 +62,47 @@ BEGIN
     END
 END
 
-/////////////////////////////////////////////////////////////////////////////
-//
-// Symbol
-//
-
-// Symbol mit dem niedrigsten ID-Wert an erster Stelle platziert, um sicherzustellen, dass das Anwendungssymbol
-// auf allen Systemen einheitlich bleibt.
-
-IDI_SMARTLOGILED       ICON         "SmartLogiLED.ico"
-IDI_SMALL			  ICON         "SmartLogiLED_small.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //
-// Menü
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_SMARTLOGILED        ICON                    "SmartLogiLED.ico"
+
+IDI_SMALL               ICON                    "SmartLogiLED_small.ico"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
 //
 
 IDC_SMARTLOGILED MENU
 BEGIN
     POPUP "&Menu"
     BEGIN
-        MENUITEM "&Start minimized",      IDM_START_MINIMIZED
+        MENUITEM "&Start minimized",            IDM_START_MINIMIZED
         MENUITEM SEPARATOR
-        MENUITEM "&Import Profile",       IDM_IMPORT_PROFILE
-        MENUITEM "&Export Selected Profile", IDM_EXPORT_SELECTED_PROFILE
-        MENUITEM "&Export All Profiles",  IDM_EXPORT_PROFILES
+        MENUITEM "&Import Profile",             IDM_IMPORT_PROFILE
+        MENUITEM "&Export Selected Profile",    IDM_EXPORT_SELECTED_PROFILE
+        MENUITEM "&Export All Profiles",        IDM_EXPORT_PROFILES
         MENUITEM SEPARATOR
-        MENUITEM "&Close",                IDM_EXIT
+        MENUITEM "&Close",                      IDM_EXIT
     END
     POPUP "&Help"
     BEGIN
-        MENUITEM "&Show help",         IDM_HELP
-        MENUITEM "&Info...",           IDM_ABOUT
+        MENUITEM "&Show help",                  IDM_HELP
+        MENUITEM "&Info...",                    IDM_ABOUT
     END
 END
 
 
 /////////////////////////////////////////////////////////////////////////////
 //
-// Zugriffstaste
+// Accelerator
 //
 
 IDC_SMARTLOGILED ACCELERATORS
@@ -113,30 +114,30 @@ END
 
 /////////////////////////////////////////////////////////////////////////////
 //
-// Dialogfeld
+// Dialog
 //
 
 IDD_ABOUTBOX DIALOGEX 0, 0, 280, 160
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Info SmartLogiLED"
-FONT 8, "MS Shell Dlg"
+FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
-CONTROL          "", IDC_STATIC_ICON_ABOUT, "Static", SS_ICON | WS_VISIBLE | WS_CHILD, 14, 14, 64, 64
-LTEXT           "SmartLogiLED, Version 3.0.0", IDC_STATIC, 90, 20, 180, 12, SS_NOPREFIX
-LTEXT           "Advanced Logitech RGB Keyboard Controller", IDC_STATIC, 110, 45, 180, 12
-LTEXT           "Copyright (c) 2025 Günter DANKL", IDC_STATIC, 110, 55, 180, 12
-LTEXT           "", IDC_STATIC, 14, 85, 250, 1, SS_SUNKEN
-LTEXT           "This software is licensed under the MIT License.", IDC_STATIC, 14, 95, 250, 12
-LTEXT           "Visit github.com/dg82wi/SmartLogiLED for source code and license details.", IDC_STATIC, 14, 110, 250, 12
-DEFPUSHBUTTON   "OK", IDOK, 115, 130, 50, 20, WS_GROUP
+    ICON            "",IDC_STATIC_ICON_ABOUT,14,14,20,20
+    LTEXT           "SmartLogiLED, Version 3.1.0",IDC_STATIC,90,20,180,12,SS_NOPREFIX
+    LTEXT           "Advanced Logitech RGB Keyboard Controller",IDC_STATIC,110,45,180,12
+    LTEXT           "Copyright (c) 2025 Günter DANKL",IDC_STATIC,110,55,180,12
+    LTEXT           "",IDC_STATIC,14,85,250,1,SS_SUNKEN
+    LTEXT           "This software is licensed under the MIT License.",IDC_STATIC,14,95,250,12
+    LTEXT           "Visit github.com/dg82wi/SmartLogiLED for source code and license details.",IDC_STATIC,14,110,250,12
+    DEFPUSHBUTTON   "OK",IDOK,115,130,50,20,WS_GROUP
 END
 
 IDD_HELPBOX DIALOGEX 0, 0, 280, 500
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "SmartLogiLED Help"
-FONT 8, "MS Shell Dlg"
+FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
-    LTEXT           "SmartLogiLED v3.0.0 - Advanced Logitech RGB Keyboard Controller",IDC_STATIC,40,10,280,8,SS_NOPREFIX
+    LTEXT           "SmartLogiLED v3.1.0 - Advanced Logitech RGB Keyboard Controller",IDC_STATIC,40,10,280,8,SS_NOPREFIX
     LTEXT           "",IDC_STATIC,14,25,250,1,SS_SUNKEN
     LTEXT           "Lock Key Color Control:",IDC_STATIC,14,30,150,8
     LTEXT           "• Click colored boxes to customize NumLock, CapsLock, ScrollLock colors",IDC_STATIC,24,45,320,8
@@ -176,7 +177,7 @@ END
 IDD_KEYSBOX DIALOGEX 0, 0, 300, 150
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Configure Highlight Keys"
-FONT 8, "MS Shell Dlg"
+FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     LTEXT           "Press keys to add/remove them from the highlight list:",IDC_LABEL_KEYS_INFO,10,10,280,8
     LTEXT           "Current keys:",IDC_STATIC,10,25,60,8
@@ -188,7 +189,7 @@ END
 IDD_ADDPROFILEBOX DIALOGEX 0, 0, 280, 120
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Add App Profile"
-FONT 8, "MS Shell Dlg"
+FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     LTEXT           "Select or type application name:",IDC_LABEL_ADD_PROFILE_INFO,10,10,260,8
     COMBOBOX        IDC_COMBO_APP_SELECTOR,10,25,260,100,CBS_DROPDOWN | CBS_SORT | WS_VSCROLL | WS_TABSTOP
@@ -199,6 +200,7 @@ BEGIN
     DEFPUSHBUTTON   "Done",IDC_BUTTON_DONE_ADD_PROFILE,165,95,50,20,WS_GROUP
     PUSHBUTTON      "Cancel",IDCANCEL,220,95,50,20
 END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -215,15 +217,14 @@ BEGIN
         TOPMARGIN, 7
         BOTTOMMARGIN, 55
     END
-    
+
     IDD_HELPBOX, DIALOG
     BEGIN
         LEFTMARGIN, 7
-        RIGHTMARGIN, 343
         TOPMARGIN, 7
         BOTTOMMARGIN, 413
     END
-    
+
     IDD_KEYSBOX, DIALOG
     BEGIN
         LEFTMARGIN, 7
@@ -231,7 +232,7 @@ BEGIN
         TOPMARGIN, 7
         BOTTOMMARGIN, 143
     END
-    
+
     IDD_ADDPROFILEBOX, DIALOG
     BEGIN
         LEFTMARGIN, 7
@@ -242,17 +243,19 @@ BEGIN
 END
 #endif    // APSTUDIO_INVOKED
 
+
 #ifdef APSTUDIO_INVOKED
 /////////////////////////////////////////////////////////////////////////////
 //
 // TEXTINCLUDE
 //
-1 TEXTINCLUDE
+
+1 TEXTINCLUDE 
 BEGIN
     "resource.h\0"
 END
 
-2 TEXTINCLUDE
+2 TEXTINCLUDE 
 BEGIN
     "#ifndef APSTUDIO_INVOKED\r\n"
     "#include ""targetver.h""\r\n"
@@ -263,7 +266,7 @@ BEGIN
     "\0"
 END
 
-3 TEXTINCLUDE
+3 TEXTINCLUDE 
 BEGIN
     "\r\n"
     "\0"
@@ -271,18 +274,23 @@ END
 
 #endif    // APSTUDIO_INVOKED
 
+
 /////////////////////////////////////////////////////////////////////////////
 //
-// Zeichenfolgentabelle
+// String Table
 //
 
 STRINGTABLE
 BEGIN
-   IDC_SMARTLOGILED   "SMARTLOGILED"
-   IDS_APP_TITLE       "SmartLogiLED"
+    IDC_SMARTLOGILED        "SMARTLOGILED"
 END
 
-#endif
+STRINGTABLE
+BEGIN
+    IDS_APP_TITLE           "SmartLogiLED"
+END
+
+#endif    // German (Germany) resources
 /////////////////////////////////////////////////////////////////////////////
 
 
@@ -290,8 +298,10 @@ END
 #ifndef APSTUDIO_INVOKED
 /////////////////////////////////////////////////////////////////////////////
 //
-// Aus der TEXTINCLUDE-Ressource generiert.
+// Generated from the TEXTINCLUDE 3 resource.
 //
+
 
 /////////////////////////////////////////////////////////////////////////////
 #endif    // not APSTUDIO_INVOKED
+
