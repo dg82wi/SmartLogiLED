@@ -91,6 +91,22 @@ void SetHighlightKeysColorWithProfile(AppColorProfile* displayedProfile) {
     }
 }
 
+// Set action color for keys from the currently active profile
+void SetActionKeysColor() {
+    AppColorProfile* displayedProfile = GetDisplayedProfile();
+    SetActionKeysColorWithProfile(displayedProfile);
+}
+
+// Set action color for keys with a specific profile (unsafe version - doesn't acquire mutex)
+void SetActionKeysColorWithProfile(AppColorProfile* displayedProfile) {
+    if (!displayedProfile) return;
+    
+    // Apply action color to all keys in the action list
+    for (const auto& key : displayedProfile->actionKeys) {
+        SetKeyColor(key, displayedProfile->appActionColor);
+    }
+}
+
 // Show color picker dialog and update color
 void ShowColorPicker(HWND hWnd, COLORREF& color, LogiLed::KeyName key) {
     CHOOSECOLOR cc;
@@ -201,6 +217,10 @@ void HandleLockKeyPressed(DWORD vkCode, DWORD vkState) {
     // Re-apply highlight colors in case a lock key was also a highlight key.
     // The lock color will correctly take precedence.
     SetHighlightKeysColor();
+    
+    // Re-apply action colors in case a lock key was also an action key.
+    // The lock color will correctly take precedence.
+    SetActionKeysColor();
 }
 
 // Hook management functions

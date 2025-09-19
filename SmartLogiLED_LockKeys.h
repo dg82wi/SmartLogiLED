@@ -30,6 +30,8 @@ void SetDefaultColor(COLORREF color);
 void ShowColorPicker(HWND hWnd, COLORREF& color, LogiLed::KeyName key = LogiLed::KeyName::ESC);
 void SetHighlightKeysColor();
 void SetHighlightKeysColorWithProfile(AppColorProfile* displayedProfile); // Unsafe version for mutex-locked contexts
+void SetActionKeysColor();
+void SetActionKeysColorWithProfile(AppColorProfile* displayedProfile);
 
 // Main window handle management
 void SetMainWindowHandle(HWND hWnd);

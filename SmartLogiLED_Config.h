@@ -16,8 +16,10 @@
 #define REGISTRY_KEY_APP_PROFILES_SUBKEY SMARTLOGILED_REGISTRY_PROFILES
 #define REGISTRY_VALUE_APP_COLOR L"AppColor"
 #define REGISTRY_VALUE_APP_HIGHLIGHT_COLOR L"AppHighlightColor"
+#define REGISTRY_VALUE_APP_ACTION_COLOR L"AppActionColor"
 #define REGISTRY_VALUE_LOCK_KEYS_ENABLED L"LockKeysEnabled"
 #define REGISTRY_VALUE_HIGHLIGHT_KEYS L"HighlightKeys"
+#define REGISTRY_VALUE_ACTION_KEYS L"ActionKeys"
 
 
 
@@ -41,12 +43,7 @@ size_t GetAppProfilesCount();
 // Update specific app profile colors in registry
 void UpdateAppProfileColorInRegistry(const std::wstring& appName, COLORREF newAppColor);
 void UpdateAppProfileHighlightColorInRegistry(const std::wstring& appName, COLORREF newHighlightColor);
+void UpdateAppProfileActionColorInRegistry(const std::wstring& appName, COLORREF newActionColor);
 void UpdateAppProfileLockKeysEnabledInRegistry(const std::wstring& appName, bool lockKeysEnabled);
 void UpdateAppProfileHighlightKeysInRegistry(const std::wstring& appName, const std::vector<LogiLed::KeyName>& highlightKeys);
-
-// Export functionality
-void ExportSelectedProfileToIniFile(HWND hWnd);
-void ExportAllProfilesToIniFiles();
-
-// Import functionality
-void ImportProfileFromIniFile(HWND hWnd);
+void UpdateAppProfileActionKeysInRegistry(const std::wstring& appName, const std::vector<LogiLed::KeyName>& actionKeys);

@@ -18,9 +18,16 @@ AppColorProfile* GetAppProfileByName(const std::wstring& appName);
 
 // App profile update functions
 void UpdateAppProfileColor(const std::wstring& appName, COLORREF newAppColor);
+// Update app profile highlight color
 void UpdateAppProfileHighlightColor(const std::wstring& appName, COLORREF newHighlightColor);
+// Update app profile action color
+void UpdateAppProfileActionColor(const std::wstring& appName, COLORREF newActionColor);
+// Update app profile lock keys enabled setting
 void UpdateAppProfileLockKeysEnabled(const std::wstring& appName, bool lockKeysEnabled);
+// Update app profile highlight keys
 void UpdateAppProfileHighlightKeys(const std::wstring& appName, const std::vector<LogiLed::KeyName>& highlightKeys);
+// Update app profile action keys
+void UpdateAppProfileActionKeys(const std::wstring& appName, const std::vector<LogiLed::KeyName>& actionKeys);
 
 // Message handlers for app monitoring
 void HandleAppStarted(const std::wstring& appName);

@@ -13,10 +13,12 @@ struct AppColorProfile {
     std::wstring appName;       // Application executable name (e.g., L"notepad.exe")
     COLORREF appColor = RGB(0, 255, 255); // Color to set when app starts
     COLORREF appHighlightColor = RGB(255, 255, 255); // Highlight color for UI representation
+    COLORREF appActionColor = RGB(255, 255, 0); // Action color for action keys
     bool isAppRunning = false;              // Whether this profile is currently active
     bool isProfileCurrInUse = false;              // Whether this profile currently defines the key colors
     bool lockKeysEnabled = true;        // Whether lock keys feature is enabled for this profile
     std::vector<LogiLed::KeyName> highlightKeys; // list of keys which use the appHighlightColor
+    std::vector<LogiLed::KeyName> actionKeys; // list of keys which use the appActionColor
 };
 
 // Message data structure for process communication
