@@ -736,18 +736,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Load app profiles from registry (includes highlight color and keys)
    LoadAppProfilesFromRegistry();
 
-   /*
-   // If no profiles exist, add some sample app color profiles with lock keys feature control
-   if (GetAppProfilesCount() == 0) {
-       AddAppColorProfile(L"notepad.exe", RGB(255, 255, 0), true);      // Yellow for Notepad, lock keys enabled
-       AddAppColorProfile(L"chrome.exe", RGB(0, 255, 255), false);      // Cyan for Chrome, lock keys disabled
-       AddAppColorProfile(L"firefox.exe", RGB(255, 165, 0), false);     // Orange for Firefox, lock keys disabled  
-       AddAppColorProfile(L"code.exe", RGB(0, 255, 0), true);           // Green for VS Code, lock keys enabled
-       AddAppColorProfile(L"devenv.exe", RGB(128, 0, 128), true);       // Purple for Visual Studio, lock keys enabled
-       SaveAppProfilesToRegistry();
-   }
-   */
-
    // Populate the combo box with app profiles
    PopulateAppProfileCombo(hCombo);
    

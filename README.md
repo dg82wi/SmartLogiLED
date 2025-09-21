@@ -83,8 +83,8 @@ The lock key system provides visual feedback for NumLock, CapsLock, and ScrollLo
 
 #### Managing Highlight and Action Keys
 1. Select a profile from the dropdown (must not be "NONE")
-2. Click the **"Highlight Keys"** button to configure keys that should be highlighted
-3. Click the **"Action Keys"** button to configure keys for actions/shortcuts
+2. Click the **"H-Keys"** button to configure keys that should be highlighted
+3. Click the **"A-Keys"** button to configure keys for actions/shortcuts
 4. **Mutual Exclusivity**: Adding a key to one list automatically removes it from the other
 5. Press keys in the configuration dialog to add/remove them from the respective lists
 6. Use **"Reset"** to clear all keys in the current list
@@ -93,7 +93,7 @@ The lock key system provides visual feedback for NumLock, CapsLock, and ScrollLo
 The key management system intelligently handles conflicts:
 - **No Overlap**: Keys cannot exist in both highlight and action lists simultaneously
 - **Priority**: When a key is added to one list, it's automatically removed from the other
-- **Lock Key Handling**: If a lock key is highlighted/actionized and lock keys are enabled for the profile, the lock state color takes precedence when active.
+- **Lock Key Handling**: If a lock key is highlighted/actionized and lock keys are enabled for the profile, the lock state color takes precedence when active
 
 #### Profile Priority System
 When multiple monitored applications are running:
@@ -140,19 +140,21 @@ ActionKeys=F3,F4,NUM_LOCK
 ### Core Components
 ```
 📁 SmartLogiLED/
-├── SmartLogiLED.cpp          # Main UI and window management
-├── SmartLogiLED_LockKeys.cpp # Lock key control and keyboard hook
-├── SmartLogiLED_AppProfiles.cpp # Application monitoring and profile management  
-├── SmartLogiLED_Config.cpp   # Registry persistence and configuration
-├── SmartLogiLED_KeyMapping.cpp # Key mapping and conversion utilities
-├── SmartLogiLED_IniFiles.cpp # Profile export/import functionality
-├── Resource files            # UI resources and version information
+├── SmartLogiLED.cpp              # Main UI and window management
+├── SmartLogiLED_LockKeys.cpp     # Lock key control and keyboard hook
+├── SmartLogiLED_AppProfiles.cpp  # Application monitoring and profile management  
+├── SmartLogiLED_Config.cpp       # Registry persistence and configuration
+├── SmartLogiLED_KeyMapping.cpp   # Key mapping and conversion utilities
+├── SmartLogiLED_IniFiles.cpp     # Profile export/import functionality
+├── SmartLogiLED_Dialogs.cpp      # Dialog management and UI interactions
+├── SmartLogiLED_ProcessMonitor.cpp # Process monitoring and detection
+├── Resource files                # UI resources and version information
 └── Headers and project files
 ```
 
 ### Threading Model
 - **Main Thread**: UI handling and user interaction
-- **Monitor Thread**: Background application detection (2-second intervals)
+- **Monitor Thread**: Background application detection (1-second intervals)
 - **Keyboard Hook**: Global low-level keyboard hook for real-time lock key detection
 - **Mutex Protection**: Thread-safe access to shared profile data structures
 
@@ -235,7 +237,7 @@ Debug builds provide comprehensive logging via `OutputDebugStringW()`:
 ```
 💡 Solutions:
 • Ensure highlight/action colors differ from app color for visibility
-• Verify keys are properly configured using respective "Keys" buttons
+• Verify keys are properly configured using respective "H-Keys" and "A-Keys" buttons
 • Check that profile is currently active (shown in dropdown)
 • Lock keys override highlight/action colors when in active state
 • Remember keys are mutually exclusive between highlight and action lists
@@ -251,7 +253,7 @@ Debug builds provide comprehensive logging via `OutputDebugStringW()`:
 ```
 
 ### Performance Optimization
-- **Monitoring Interval**: Configurable in code (default: 2 seconds)
+- **Monitoring Interval**: Configurable in code (default: 1 second)
 - **Hook Efficiency**: Optimized keyboard hook with minimal CPU overhead
 - **Memory Management**: Automatic cleanup of unused profile data
 - **Registry Optimization**: Batched registry operations for better performance
@@ -269,10 +271,10 @@ cd SmartLogiLED
 ### Customization Options
 
 #### Adding Custom Monitoring Logic
-Modify `SmartLogiLED_AppProfiles.cpp` to customize application detection:
+Modify `SmartLogiLED_ProcessMonitor.cpp` to customize application detection:
 ```cpp
-// Adjust monitoring interval (default: 2000ms)
-const DWORD MONITOR_INTERVAL = 2000;
+// Adjust monitoring interval (default: 1000ms)
+const DWORD MONITOR_INTERVAL = 1000;
 
 // Customize visibility detection criteria
 bool IsProcessVisible(DWORD processId, const std::wstring& processName);
