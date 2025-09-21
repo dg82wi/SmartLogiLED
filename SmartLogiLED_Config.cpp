@@ -15,7 +15,7 @@
 // Registry functions for start minimized setting
 void SaveStartMinimizedSetting(bool minimized) {
     HKEY hKey;
-    LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY, 0, NULL, 
+    LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_ROOT, 0, NULL, 
                                 REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
     if (result == ERROR_SUCCESS) {
         DWORD value = minimized ? 1 : 0;
@@ -27,7 +27,7 @@ void SaveStartMinimizedSetting(bool minimized) {
 
 bool LoadStartMinimizedSetting() {
     HKEY hKey;
-    LONG result = RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY, 0, KEY_READ, &hKey);
+    LONG result = RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_ROOT, 0, KEY_READ, &hKey);
     if (result == ERROR_SUCCESS) {
         DWORD value = 0;
         DWORD size = sizeof(value);
@@ -45,7 +45,7 @@ bool LoadStartMinimizedSetting() {
 // Registry functions for color settings
 void SaveColorToRegistry(LPCWSTR valueName, COLORREF color) {
     HKEY hKey;
-    LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY, 0, NULL, 
+    LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_ROOT, 0, NULL, 
                                 REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
     if (result == ERROR_SUCCESS) {
         DWORD colorValue = (DWORD)color;
@@ -57,7 +57,7 @@ void SaveColorToRegistry(LPCWSTR valueName, COLORREF color) {
 
 COLORREF LoadColorFromRegistry(LPCWSTR valueName, COLORREF defaultValue) {
     HKEY hKey;
-    LONG result = RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY, 0, KEY_READ, &hKey);
+    LONG result = RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_ROOT, 0, KEY_READ, &hKey);
     if (result == ERROR_SUCCESS) {
         DWORD colorValue = 0;
         DWORD size = sizeof(colorValue);
@@ -103,7 +103,7 @@ extern std::mutex appProfilesMutex;
 
 void AddAppProfileToRegistry(const AppColorProfile& profile) {
     HKEY hProfilesKey = nullptr;
-    if (RegCreateKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, NULL,
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, NULL,
                         REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hProfilesKey, NULL) != ERROR_SUCCESS) {
         return;
     }
@@ -153,7 +153,7 @@ void AddAppProfileToRegistry(const AppColorProfile& profile) {
 
 void RemoveAppProfileFromRegistry(const std::wstring& appName) {
     HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
         // Delete the subkey for this app profile
         RegDeleteKeyW(hProfilesKey, appName.c_str());
         RegCloseKey(hProfilesKey);
@@ -165,7 +165,7 @@ void SaveAppProfilesToRegistry() {
     
     // First, clear all existing profiles from registry
     HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_READ | KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_READ | KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
         // Enumerate and delete all existing subkeys
         DWORD subKeyCount = 0;
         if (RegQueryInfoKeyW(hProfilesKey, NULL, NULL, NULL, &subKeyCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
@@ -195,7 +195,7 @@ void SaveAppProfilesToRegistry() {
 void LoadAppProfilesFromRegistry() {
     std::lock_guard<std::mutex> lock(appProfilesMutex);
     HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_READ, &hProfilesKey) != ERROR_SUCCESS) {
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_READ, &hProfilesKey) != ERROR_SUCCESS) {
         return;
     }
     appColorProfiles.clear();
@@ -264,7 +264,7 @@ size_t GetAppProfilesCount() {
 // Update specific app profile color in registry
 void UpdateAppProfileColorInRegistry(const std::wstring& appName, COLORREF newAppColor) {
     HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
         HKEY hAppKey = nullptr;
         if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
             DWORD d = static_cast<DWORD>(newAppColor);
@@ -279,7 +279,7 @@ void UpdateAppProfileColorInRegistry(const std::wstring& appName, COLORREF newAp
 // Update specific app profile highlight color in registry
 void UpdateAppProfileHighlightColorInRegistry(const std::wstring& appName, COLORREF newHighlightColor) {
     HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
         HKEY hAppKey = nullptr;
         if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
             DWORD d = static_cast<DWORD>(newHighlightColor);
@@ -294,7 +294,7 @@ void UpdateAppProfileHighlightColorInRegistry(const std::wstring& appName, COLOR
 // Update specific app profile action color in registry
 void UpdateAppProfileActionColorInRegistry(const std::wstring& appName, COLORREF newActionColor) {
     HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
         HKEY hAppKey = nullptr;
         if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
             DWORD d = static_cast<DWORD>(newActionColor);
@@ -309,7 +309,7 @@ void UpdateAppProfileActionColorInRegistry(const std::wstring& appName, COLORREF
 // Update specific app profile lock keys enabled setting in registry
 void UpdateAppProfileLockKeysEnabledInRegistry(const std::wstring& appName, bool lockKeysEnabled) {
     HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
         HKEY hAppKey = nullptr;
         if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
             DWORD d = lockKeysEnabled ? 1u : 0u;
@@ -324,7 +324,7 @@ void UpdateAppProfileLockKeysEnabledInRegistry(const std::wstring& appName, bool
 // Update specific app profile highlight keys in registry
 void UpdateAppProfileHighlightKeysInRegistry(const std::wstring& appName, const std::vector<LogiLed::KeyName>& highlightKeys) {
     HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
         HKEY hAppKey = nullptr;
         if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
             if (!highlightKeys.empty()) {
@@ -346,7 +346,7 @@ void UpdateAppProfileHighlightKeysInRegistry(const std::wstring& appName, const 
 // Update specific app profile action keys in registry
 void UpdateAppProfileActionKeysInRegistry(const std::wstring& appName, const std::vector<LogiLed::KeyName>& actionKeys) {
     HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, REGISTRY_KEY_APP_PROFILES_SUBKEY, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
         HKEY hAppKey = nullptr;
         if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
             if (!actionKeys.empty()) {

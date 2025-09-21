@@ -5,6 +5,7 @@
 #include "SmartLogiLED.h"
 #include "SmartLogiLED_LockKeys.h"
 #include "SmartLogiLED_AppProfiles.h"
+#include "SmartLogiLED_Constants.h"
 #include "LogitechLEDLib.h"
 #include "Resource.h"
 #include <commdlg.h>
@@ -236,10 +237,15 @@ void EnableKeyboardHook() {
         keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(nullptr), 0);
         if (keyboardHook) {
             isKeyboardHookEnabled = true;
+#ifdef ENABLE_DEBUG_LOGGING
             OutputDebugStringW(L"[DEBUG] Keyboard hook enabled\n");
-        } else {
+#endif
+        }
+#ifdef ENABLE_DEBUG_LOGGING
+        else {
             OutputDebugStringW(L"[DEBUG] Failed to enable keyboard hook\n");
         }
+#endif
     }
 }
 
@@ -249,10 +255,16 @@ void DisableKeyboardHook() {
         if (UnhookWindowsHookEx(keyboardHook)) {
             keyboardHook = nullptr;
             isKeyboardHookEnabled = false;
+#ifdef ENABLE_DEBUG_LOGGING
             OutputDebugStringW(L"[DEBUG] Keyboard hook disabled\n");
-        } else {
+#endif
+        }
+#ifdef ENABLE_DEBUG_LOGGING
+        else {
             OutputDebugStringW(L"[DEBUG] Failed to disable keyboard hook\n");
         }
+#endif
+
     }
 }
 
@@ -263,11 +275,15 @@ void UpdateKeyboardHookState() {
     if (lockKeysEnabled && !isKeyboardHookEnabled) {
         // Lock keys feature is enabled but hook is disabled - enable it
         EnableKeyboardHook();
+#ifdef ENABLE_DEBUG_LOGGING
         OutputDebugStringW(L"[DEBUG] Keyboard hook enabled due to lock keys feature\n");
+#endif
     } else if (!lockKeysEnabled && isKeyboardHookEnabled) {
         // Lock keys feature is disabled but hook is enabled - disable it
         DisableKeyboardHook();
+#ifdef ENABLE_DEBUG_LOGGING
         OutputDebugStringW(L"[DEBUG] Keyboard hook disabled due to lock keys feature being disabled\n");
+#endif
     }
 }
 
@@ -278,11 +294,15 @@ void UpdateKeyboardHookStateUnsafe() {
     if (lockKeysEnabled && !isKeyboardHookEnabled) {
         // Lock keys feature is enabled but hook is disabled - enable it
         EnableKeyboardHook();
+#ifdef ENABLE_DEBUG_LOGGING
         OutputDebugStringW(L"[DEBUG] Keyboard hook enabled due to lock keys feature\n");
+#endif
     } else if (!lockKeysEnabled && isKeyboardHookEnabled) {
         // Lock keys feature is disabled but hook is enabled - disable it
         DisableKeyboardHook();
+#ifdef ENABLE_DEBUG_LOGGING
         OutputDebugStringW(L"[DEBUG] Keyboard hook disabled due to lock keys feature being disabled\n");
+#endif
     }
 }
 

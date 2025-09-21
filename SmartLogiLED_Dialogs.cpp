@@ -13,6 +13,7 @@
 #include "SmartLogiLED_KeyMapping.h"
 #include "SmartLogiLED_ProcessMonitor.h"
 #include "SmartLogiLED_Config.h"
+#include "SmartLogiLED_Constants.h"
 #include "Resource.h"
 #include <commdlg.h>
 #include <algorithm>
@@ -522,8 +523,10 @@ void ShowAppColorPicker(HWND hWnd, int colorType) {
     
     int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
     if (selectedIndex == CB_ERR || selectedIndex == 0) {
+#ifdef ENABLE_DEBUG_LOGGING
         // log to debug console
         OutputDebugStringW(L"No valid profile selected for color change.\n");
+#endif
         return;
     }
     

@@ -137,6 +137,7 @@
     <ClInclude Include="SmartLogiLED.h" />
     <ClInclude Include="SmartLogiLED_AppProfiles.h" />
     <ClInclude Include="SmartLogiLED_Config.h" />
+    <ClInclude Include="SmartLogiLED_Constants.h" />
     <ClInclude Include="SmartLogiLED_Dialogs.h" />
     <ClInclude Include="SmartLogiLED_IniFiles.h" />
     <ClInclude Include="SmartLogiLED_KeyMapping.h" />

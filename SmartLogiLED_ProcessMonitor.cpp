@@ -8,6 +8,7 @@
 #include <tlhelp32.h>
 #include <psapi.h>
 #include "SmartLogiLED_ProcessMonitor.h"
+#include "SmartLogiLED_Constants.h"
 
 // Module-specific variables
 static std::thread appMonitorThread;
@@ -121,7 +122,7 @@ void AppMonitorThreadProc() {
         
         lastRunningApps = currentRunningApps;
         
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(APP_MONITOR_INTERVAL_MS));
     }
 }
 

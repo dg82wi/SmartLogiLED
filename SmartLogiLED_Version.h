@@ -49,10 +49,6 @@
 #define SMARTLOGILED_WINDOW_CLASS       L"SmartLogiLEDClass"
 #define SMARTLOGILED_APP_DESCRIPTION    L"Advanced Logitech RGB Keyboard Controller"
 
-// Registry keys (moved from Config module for centralization)
-#define SMARTLOGILED_REGISTRY_ROOT      L"Software\\SmartLogiLED"
-#define SMARTLOGILED_REGISTRY_PROFILES  L"Software\\SmartLogiLED\\AppProfiles"
-
 // Function declarations for version information (implemented in SmartLogiLED.cpp)
 std::wstring GetApplicationVersion();
 std::wstring GetApplicationFullVersion();

@@ -60,6 +60,9 @@
     <ClInclude Include="SmartLogiLED_IniFiles.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="SmartLogiLED_Constants.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SmartLogiLED.cpp">

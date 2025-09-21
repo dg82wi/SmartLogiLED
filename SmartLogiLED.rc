@@ -124,7 +124,7 @@ FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     ICON            "",IDC_STATIC_ICON_ABOUT,14,14,20,20
     LTEXT           "SmartLogiLED, Version 3.1.0",IDC_STATIC,90,20,180,12,SS_NOPREFIX
-    LTEXT           "Advanced Logitech RGB Keyboard Controller",IDC_STATIC,110,45,180,12
+    LTEXT           "Advanced Logitech RGB Keyboard Controller",IDC_STATIC,110,40,180,12
     LTEXT           "Copyright (c) 2025 Günter DANKL",IDC_STATIC,110,55,180,12
     LTEXT           "",IDC_STATIC,14,85,250,1,SS_SUNKEN
     LTEXT           "This software is licensed under the MIT License.",IDC_STATIC,14,95,250,12
@@ -132,46 +132,53 @@ BEGIN
     DEFPUSHBUTTON   "OK",IDOK,115,130,50,20,WS_GROUP
 END
 
-IDD_HELPBOX DIALOGEX 0, 0, 280, 500
+IDD_HELPBOX DIALOGEX 0, 0, 320, 520
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "SmartLogiLED Help"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
-    LTEXT           "SmartLogiLED v3.1.0 - Advanced Logitech RGB Keyboard Controller",IDC_STATIC,40,10,280,8,SS_NOPREFIX
-    LTEXT           "",IDC_STATIC,14,25,250,1,SS_SUNKEN
-    LTEXT           "Lock Key Color Control:",IDC_STATIC,14,30,150,8
-    LTEXT           "• Click colored boxes to customize NumLock, CapsLock, ScrollLock colors",IDC_STATIC,24,45,320,8
-    LTEXT           "• Default Color: Base color for all keys and inactive lock keys",IDC_STATIC,24,60,320,8
-    LTEXT           "• Colors update instantly when lock key states change",IDC_STATIC,24,75,320,8
-    LTEXT           "",IDC_STATIC,14,90,250,1,SS_SUNKEN
-    LTEXT           "Application Profiles:",IDC_STATIC,14,95,150,8
-    LTEXT           "• Create custom lighting profiles for specific applications",IDC_STATIC,24,110,320,8
-    LTEXT           "• '+' button: Add new profiles (detects running apps automatically)",IDC_STATIC,24,125,320,8
-    LTEXT           "• '-' button: Remove selected profile",IDC_STATIC,24,140,320,8
-    LTEXT           "• Most recently activated app takes priority when multiple run",IDC_STATIC,24,155,320,8
-    LTEXT           "• Returns to default colors when monitored apps close",IDC_STATIC,24,170,320,8
-    LTEXT           "",IDC_STATIC,14,185,250,1,SS_SUNKEN
-    LTEXT           "Profile Configuration:",IDC_STATIC,14,190,150,8
-    LTEXT           "• App Color: Main keyboard color when application is active",IDC_STATIC,24,205,320,8
-    LTEXT           "• Highlight Color: Color for individually highlighted keys (H-Keys)",IDC_STATIC,24,220,320,8
-    LTEXT           "• Action Color: Color for action keys that trigger special functions (A-Keys)",IDC_STATIC,24,235,320,8
-    LTEXT           "• Lock Keys checkbox: Enable/disable lock key visualization per app",IDC_STATIC,24,250,320,8
-    LTEXT           "• H-Keys button: Configure individual key highlighting",IDC_STATIC,24,265,320,8
-    LTEXT           "• A-Keys button: Configure action keys for special functions",IDC_STATIC,24,280,320,8
-    LTEXT           "",IDC_STATIC,14,295,250,1,SS_SUNKEN
-    LTEXT           "Key Configuration:",IDC_STATIC,14,305,150,8
-    LTEXT           "• H-Keys (Highlight): Press 'H-Keys' button to open key capture dialog",IDC_STATIC,24,320,320,8
-    LTEXT           "• A-Keys (Action): Press 'A-Keys' button to configure action keys",IDC_STATIC,24,335,320,8
-    LTEXT           "• Press any keys to add/remove from highlight or action lists",IDC_STATIC,24,350,320,8
-    LTEXT           "• 'Reset' clears all keys for the selected profile",IDC_STATIC,24,365,320,8
-    LTEXT           "• Lock keys respect their state when highlighted or used as actions",IDC_STATIC,24,380,320,8
-    LTEXT           "",IDC_STATIC,14,395,250,1,SS_SUNKEN
-    LTEXT           "Profile Management:",IDC_STATIC,14,405,150,8
-    LTEXT           "• Menu > Export Profiles: Save all profiles as .ini files",IDC_STATIC,24,420,320,8
-    LTEXT           "• Menu > Import Profile: Load profile from .ini file",IDC_STATIC,24,435,320,8
-    LTEXT           "• All settings automatically saved to Windows registry",IDC_STATIC,24,450,320,8
-    LTEXT           "• System Tray: Double-click to restore, right-click for menu",IDC_STATIC,24,465,320,8
-    DEFPUSHBUTTON   "OK",IDOK,210,480,50,14,WS_GROUP
+    LTEXT           "SmartLogiLED v3.1.0 - Advanced Logitech RGB Keyboard Controller",IDC_STATIC,10,10,300,8,SS_NOPREFIX
+    LTEXT           "Real-time keyboard lighting control with application-specific profiles",IDC_STATIC,10,25,300,8
+    LTEXT           "",IDC_STATIC,10,40,300,1,SS_SUNKEN
+    
+    LTEXT           "Getting Started:",IDC_STATIC,10,50,150,8
+    LTEXT           "• Install Logitech G HUB or Gaming Software first",IDC_STATIC,20,65,280,8
+    LTEXT           "• SmartLogiLED works with compatible RGB keyboards (G910, G815, G Pro X, etc.)",IDC_STATIC,20,80,280,8
+    LTEXT           "• Run as administrator for best performance and app detection",IDC_STATIC,20,95,280,8
+    LTEXT           "",IDC_STATIC,10,110,300,1,SS_SUNKEN
+    
+    LTEXT           "Lock Key Color Control:",IDC_STATIC,10,120,150,8
+    LTEXT           "• Click colored boxes to customize NumLock, CapsLock, ScrollLock colors",IDC_STATIC,20,135,280,8
+    LTEXT           "• Default Color: Base color for all keys and inactive lock keys",IDC_STATIC,20,150,280,8
+    LTEXT           "• Colors update instantly when lock key states change",IDC_STATIC,20,165,280,8
+    LTEXT           "• Each lock key can have its own unique color when active",IDC_STATIC,20,180,280,8
+    LTEXT           "",IDC_STATIC,10,195,300,1,SS_SUNKEN
+    
+    LTEXT           "Application Profiles:",IDC_STATIC,10,205,150,8
+    LTEXT           "• Create custom lighting profiles for specific applications",IDC_STATIC,20,220,280,8
+    LTEXT           "• '+' button: Add new profiles (automatically detects running apps)",IDC_STATIC,20,235,280,8
+    LTEXT           "• '-' button: Remove selected profile from the list",IDC_STATIC,20,250,280,8
+    LTEXT           "• Most recently activated app takes priority when multiple profiles match",IDC_STATIC,20,265,280,8
+    LTEXT           "• Automatically returns to default colors when monitored apps close",IDC_STATIC,20,280,280,8
+    LTEXT           "• Profile switching is instant and seamless",IDC_STATIC,20,295,280,8
+    LTEXT           "",IDC_STATIC,10,310,300,1,SS_SUNKEN
+    
+    LTEXT           "Profile Configuration:",IDC_STATIC,10,320,150,8
+    LTEXT           "• App Color: Main keyboard color when application is active",IDC_STATIC,20,335,280,8
+    LTEXT           "• Highlight Color: Color for individually highlighted keys (H-Keys)",IDC_STATIC,20,350,280,8
+    LTEXT           "• Action Color: Color for action keys with special functions (A-Keys)",IDC_STATIC,20,365,280,8
+    LTEXT           "• Lock Keys checkbox: Enable/disable lock key visualization per profile",IDC_STATIC,20,380,280,8
+    LTEXT           "• H-Keys button: Configure individual key highlighting and effects",IDC_STATIC,20,395,280,8
+    LTEXT           "• A-Keys button: Configure action keys for shortcuts and macros",IDC_STATIC,20,410,280,8
+    LTEXT           "",IDC_STATIC,10,425,300,1,SS_SUNKEN
+    
+    LTEXT           "Advanced Features:",IDC_STATIC,10,435,150,8
+    LTEXT           "• Profile import/export for sharing configurations",IDC_STATIC,20,450,280,8
+    LTEXT           "• System tray integration with quick access menu",IDC_STATIC,20,465,280,8
+    LTEXT           "• Automatic startup option for seamless operation",IDC_STATIC,20,480,280,8
+    LTEXT           "• Registry-based settings storage for persistence",IDC_STATIC,20,495,280,8
+    
+    DEFPUSHBUTTON   "OK",IDOK,250,500,50,14,WS_GROUP
 END
 
 IDD_KEYSBOX DIALOGEX 0, 0, 300, 150
@@ -186,19 +193,15 @@ BEGIN
     DEFPUSHBUTTON   "Done",IDC_BUTTON_DONE_KEYS,190,110,50,25,WS_GROUP
 END
 
-IDD_ADDPROFILEBOX DIALOGEX 0, 0, 280, 120
+IDD_ADDPROFILEBOX DIALOGEX 0, 0, 280, 75
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Add App Profile"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     LTEXT           "Select or type application name:",IDC_LABEL_ADD_PROFILE_INFO,10,10,260,8
     COMBOBOX        IDC_COMBO_APP_SELECTOR,10,25,260,100,CBS_DROPDOWN | CBS_SORT | WS_VSCROLL | WS_TABSTOP
-    LTEXT           "The new profile will be created with:",IDC_STATIC,10,50,200,8
-    LTEXT           "• Lock keys feature: Disabled",IDC_STATIC,20,65,180,8
-    LTEXT           "• App color: Cyan (RGB 0,255,255)",IDC_STATIC,20,75,180,8
-    LTEXT           "• Highlight color: Red (RGB 255,0,0)",IDC_STATIC,20,85,180,8
-    DEFPUSHBUTTON   "Done",IDC_BUTTON_DONE_ADD_PROFILE,165,95,50,20,WS_GROUP
-    PUSHBUTTON      "Cancel",IDCANCEL,220,95,50,20
+    DEFPUSHBUTTON   "Done",IDC_BUTTON_DONE_ADD_PROFILE,165,45,50,20,WS_GROUP
+    PUSHBUTTON      "Cancel",IDCANCEL,220,45,50,20
 END
 
 
