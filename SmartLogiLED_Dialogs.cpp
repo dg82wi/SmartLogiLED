@@ -141,7 +141,7 @@ INT_PTR CALLBACK KeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
         if (hCombo) {
             int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
             if (selectedIndex > 0) { // Not "NONE"
-                WCHAR appName[256];
+                WCHAR appName[256]{};
                 SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
                 currentAppNameForKeys = appName;
                 
@@ -268,7 +268,7 @@ INT_PTR CALLBACK ActionKeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM
         if (hCombo) {
             int selectedIndex = (int)SendMessage(hCombo, CB_GETCURSEL, 0, 0);
             if (selectedIndex > 0) { // Not "NONE"
-                WCHAR appName[256];
+                WCHAR appName[256]{};
                 SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
                 currentAppNameForActionKeys = appName;
                 
@@ -398,7 +398,7 @@ INT_PTR CALLBACK AddProfileDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM
                 // Get the text from the combo box
                 HWND hCombo = GetDlgItem(hDlg, IDC_COMBO_APP_SELECTOR);
                 if (hCombo) {
-                    WCHAR appName[256];
+                    WCHAR appName[256]{};
                     GetWindowTextW(hCombo, appName, sizeof(appName) / sizeof(WCHAR));
                     
                     // Check if something was entered
@@ -531,7 +531,7 @@ void ShowAppColorPicker(HWND hWnd, int colorType) {
     }
     
     // Get the selected app name
-    WCHAR appName[256];
+    WCHAR appName[256]{};
     SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
     
     // Get the current profile

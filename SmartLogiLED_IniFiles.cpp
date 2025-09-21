@@ -361,7 +361,7 @@ void ExportSelectedProfileToIniFile(HWND hWnd) {
     }
     
     // Get the selected app name
-    WCHAR appName[256];
+    WCHAR appName[256]{};
     SendMessageW(hCombo, CB_GETLBTEXT, selectedIndex, (LPARAM)appName);
     
     // Get the profile data

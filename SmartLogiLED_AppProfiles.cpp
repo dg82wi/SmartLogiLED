@@ -374,11 +374,12 @@ void UpdateAndApplyActiveProfile() {
         if (mainWindowHandle) {
             PostMessage(mainWindowHandle, WM_UPDATE_PROFILE_COMBO, 0, 0);
         }
-    } else {
+    } 
 #ifdef ENABLE_DEBUG_LOGGING
+    else {
         OutputDebugStringW(L"[DEBUG] UpdateAndApplyActiveProfile - No change detected\n");
-#endif
     }
+#endif
 }
 
 // ======================================================================
