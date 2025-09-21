@@ -122,18 +122,26 @@ void UpdateOrCreateProfileIniFile(const std::wstring& filename, const AppColorPr
                                 } else if (key == L"HighlightKeys") {
                                     newContent << L"HighlightKeys=";
                                     if (!profile.highlightKeys.empty()) {
-                                        for (size_t i = 0; i < profile.highlightKeys.size(); ++i) {
+										// sort keys for consistent order
+										std::vector<LogiLed::KeyName> sortedKeys = profile.highlightKeys;
+										std::sort(sortedKeys.begin(), sortedKeys.end());
+
+                                        for (size_t i = 0; i < sortedKeys.size(); ++i) {
                                             if (i > 0) newContent << L",";
-                                            newContent << LogiLedKeyToConfigName(profile.highlightKeys[i]);
+                                            newContent << LogiLedKeyToDisplayName(sortedKeys[i]);
                                         }
                                     }
                                     newContent << L"\n";
                                 } else if (key == L"ActionKeys") {
                                     newContent << L"ActionKeys=";
                                     if (!profile.actionKeys.empty()) {
-                                        for (size_t i = 0; i < profile.actionKeys.size(); ++i) {
+										//sort keys for consistent order
+										std::vector<LogiLed::KeyName> sortedKeys = profile.actionKeys;
+										std::sort(sortedKeys.begin(), sortedKeys.end());
+
+                                        for (size_t i = 0; i < sortedKeys.size(); ++i) {
                                             if (i > 0) newContent << L",";
-                                            newContent << LogiLedKeyToConfigName(profile.actionKeys[i]);
+                                            newContent << LogiLedKeyToDisplayName(sortedKeys[i]);
                                         }
                                     }
                                     newContent << L"\n";
@@ -179,7 +187,7 @@ void UpdateOrCreateProfileIniFile(const std::wstring& filename, const AppColorPr
                 newContent << L"HighlightKeys=";
                 for (size_t i = 0; i < profile.highlightKeys.size(); ++i) {
                     if (i > 0) newContent << L",";
-                    newContent << LogiLedKeyToConfigName(profile.highlightKeys[i]);
+                    newContent << LogiLedKeyToDisplayName(profile.highlightKeys[i]);
                 }
                 newContent << L"\n";
             } else {
@@ -189,7 +197,7 @@ void UpdateOrCreateProfileIniFile(const std::wstring& filename, const AppColorPr
                 newContent << L"ActionKeys=";
                 for (size_t i = 0; i < profile.actionKeys.size(); ++i) {
                     if (i > 0) newContent << L",";
-                    newContent << LogiLedKeyToConfigName(profile.actionKeys[i]);
+                    newContent << LogiLedKeyToDisplayName(profile.actionKeys[i]);
                 }
                 newContent << L"\n";
             } else {
@@ -568,7 +576,7 @@ void ImportProfileFromIniFile(HWND hWnd) {
                                             keyName.erase(keyName.find_last_not_of(L" \t") + 1);
                                             
                                             if (!keyName.empty()) {
-                                                LogiLed::KeyName logiKey = ConfigNameToLogiLedKey(keyName);
+                                                LogiLed::KeyName logiKey = DisplayNameToLogiLedKey(keyName);
                                                 if (logiKey != LogiLed::KeyName::ESC || keyName == L"ESC") {
                                                     importedProfile.highlightKeys.push_back(logiKey);
                                                 }
@@ -587,7 +595,7 @@ void ImportProfileFromIniFile(HWND hWnd) {
                                             keyName.erase(keyName.find_last_not_of(L" \t") + 1);
                                             
                                             if (!keyName.empty()) {
-                                                LogiLed::KeyName logiKey = ConfigNameToLogiLedKey(keyName);
+                                                LogiLed::KeyName logiKey = DisplayNameToLogiLedKey(keyName);
                                                 if (logiKey != LogiLed::KeyName::ESC || keyName == L"ESC") {
                                                     importedProfile.actionKeys.push_back(logiKey);
                                                 }
@@ -598,6 +606,9 @@ void ImportProfileFromIniFile(HWND hWnd) {
                             }
                         }
                     }
+					//sort keys for consistent order
+					std::sort(importedProfile.highlightKeys.begin(), importedProfile.highlightKeys.end());
+					std::sort(importedProfile.actionKeys.begin(), importedProfile.actionKeys.end());
                 }
             }
         }
@@ -672,7 +683,7 @@ void AddMissingProfileKeys(std::wstringstream& content, const AppColorProfile& p
             if (!profile.highlightKeys.empty()) {
                 for (size_t i = 0; i < profile.highlightKeys.size(); ++i) {
                     if (i > 0) content << L",";
-                    content << LogiLedKeyToConfigName(profile.highlightKeys[i]);
+                    content << LogiLedKeyToDisplayName(profile.highlightKeys[i]);
                 }
             }
             content << L"\n";
@@ -682,7 +693,7 @@ void AddMissingProfileKeys(std::wstringstream& content, const AppColorProfile& p
             if (!profile.actionKeys.empty()) {
                 for (size_t i = 0; i < profile.actionKeys.size(); ++i) {
                     if (i > 0) content << L",";
-                    content << LogiLedKeyToConfigName(profile.actionKeys[i]);
+                    content << LogiLedKeyToDisplayName(profile.actionKeys[i]);
                 }
             }
             content << L"\n";

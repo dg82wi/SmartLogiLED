@@ -20,10 +20,10 @@ LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode);
 std::wstring LogiLedKeyToDisplayName(LogiLed::KeyName key);
 
 // Convert config name to LogiLed::KeyName (for INI import)
-LogiLed::KeyName ConfigNameToLogiLedKey(const std::wstring& configName);
+LogiLed::KeyName DisplayNameToLogiLedKey(const std::wstring& configName);
 
 // Convert LogiLed::KeyName to config name (for INI export)
-std::wstring LogiLedKeyToConfigName(LogiLed::KeyName key);
+std::wstring LogiLedKeyToDisplayName(LogiLed::KeyName key);
 
 // Format highlight keys for display in text field
 std::wstring FormatHighlightKeysForDisplay(const std::vector<LogiLed::KeyName>& keys);

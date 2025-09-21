@@ -3,6 +3,18 @@
 // This file contains functions for converting between different key representations.
 
 #include "SmartLogiLED_KeyMapping.h"
+#include <algorithm> 
+#include <windows.h>
+
+// Add this helper function
+bool IsQWERTZLayout() {
+    HKL layout = GetKeyboardLayout(0);
+    LANGID langId = LOWORD(layout);
+    // Check for German, Austrian, Czech, Slovak layouts
+    return (PRIMARYLANGID(langId) == LANG_GERMAN || 
+            PRIMARYLANGID(langId) == LANG_CZECH ||
+            PRIMARYLANGID(langId) == LANG_SLOVAK);
+}
 
 // Convert Virtual Key code to LogiLed::KeyName
 LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode) {
@@ -50,7 +62,8 @@ LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode) {
         case 'E': return LogiLed::KeyName::E;
         case 'R': return LogiLed::KeyName::R;
         case 'T': return LogiLed::KeyName::T;
-        case 'Y': return LogiLed::KeyName::Y;
+        case 'Y': 
+            return IsQWERTZLayout() ? LogiLed::KeyName::Z : LogiLed::KeyName::Y;
         case 'U': return LogiLed::KeyName::U;
         case 'I': return LogiLed::KeyName::I;
         case 'O': return LogiLed::KeyName::O;
@@ -82,7 +95,8 @@ LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode) {
         case VK_NUMPAD5: return LogiLed::KeyName::NUM_FIVE;
         case VK_NUMPAD6: return LogiLed::KeyName::NUM_SIX;
         case VK_LSHIFT: return LogiLed::KeyName::LEFT_SHIFT;
-        case 'Z': return LogiLed::KeyName::Z;
+        case 'Z': 
+            return IsQWERTZLayout() ? LogiLed::KeyName::Y : LogiLed::KeyName::Z;
         case 'X': return LogiLed::KeyName::X;
         case 'C': return LogiLed::KeyName::C;
         case 'V': return LogiLed::KeyName::V;
@@ -114,7 +128,7 @@ LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode) {
     }
 }
 
-// Convert LogiLed::KeyName to display name
+// Convert LogiLed::KeyName to display name (used for both UI display and config storage)
 std::wstring LogiLedKeyToDisplayName(LogiLed::KeyName key) {
     switch (key) {
         case LogiLed::KeyName::ESC: return L"ESC";
@@ -236,246 +250,125 @@ std::wstring LogiLedKeyToDisplayName(LogiLed::KeyName key) {
     }
 }
 
-// Convert config name to LogiLed::KeyName (for INI import)
-LogiLed::KeyName ConfigNameToLogiLedKey(const std::wstring& configName) {
-    if (configName == L"ESC") return LogiLed::KeyName::ESC;
-    if (configName == L"F1") return LogiLed::KeyName::F1;
-    if (configName == L"F2") return LogiLed::KeyName::F2;
-    if (configName == L"F3") return LogiLed::KeyName::F3;
-    if (configName == L"F4") return LogiLed::KeyName::F4;
-    if (configName == L"F5") return LogiLed::KeyName::F5;
-    if (configName == L"F6") return LogiLed::KeyName::F6;
-    if (configName == L"F7") return LogiLed::KeyName::F7;
-    if (configName == L"F8") return LogiLed::KeyName::F8;
-    if (configName == L"F9") return LogiLed::KeyName::F9;
-    if (configName == L"F10") return LogiLed::KeyName::F10;
-    if (configName == L"F11") return LogiLed::KeyName::F11;
-    if (configName == L"F12") return LogiLed::KeyName::F12;
-    if (configName == L"PRINT_SCREEN") return LogiLed::KeyName::PRINT_SCREEN;
-    if (configName == L"SCROLL_LOCK") return LogiLed::KeyName::SCROLL_LOCK;
-    if (configName == L"PAUSE_BREAK") return LogiLed::KeyName::PAUSE_BREAK;
-    if (configName == L"TILDE") return LogiLed::KeyName::TILDE;
-    if (configName == L"ONE") return LogiLed::KeyName::ONE;
-    if (configName == L"TWO") return LogiLed::KeyName::TWO;
-    if (configName == L"THREE") return LogiLed::KeyName::THREE;
-    if (configName == L"FOUR") return LogiLed::KeyName::FOUR;
-    if (configName == L"FIVE") return LogiLed::KeyName::FIVE;
-    if (configName == L"SIX") return LogiLed::KeyName::SIX;
-    if (configName == L"SEVEN") return LogiLed::KeyName::SEVEN;
-    if (configName == L"EIGHT") return LogiLed::KeyName::EIGHT;
-    if (configName == L"NINE") return LogiLed::KeyName::NINE;
-    if (configName == L"ZERO") return LogiLed::KeyName::ZERO;
-    if (configName == L"MINUS") return LogiLed::KeyName::MINUS;
-    if (configName == L"EQUALS") return LogiLed::KeyName::EQUALS;
-    if (configName == L"BACKSPACE") return LogiLed::KeyName::BACKSPACE;
-    if (configName == L"INSERT") return LogiLed::KeyName::INSERT;
-    if (configName == L"HOME") return LogiLed::KeyName::HOME;
-    if (configName == L"PAGE_UP") return LogiLed::KeyName::PAGE_UP;
-    if (configName == L"NUM_LOCK") return LogiLed::KeyName::NUM_LOCK;
-    if (configName == L"NUM_SLASH") return LogiLed::KeyName::NUM_SLASH;
-    if (configName == L"NUM_ASTERISK") return LogiLed::KeyName::NUM_ASTERISK;
-    if (configName == L"NUM_MINUS") return LogiLed::KeyName::NUM_MINUS;
-    if (configName == L"TAB") return LogiLed::KeyName::TAB;
-    if (configName == L"Q") return LogiLed::KeyName::Q;
-    if (configName == L"W") return LogiLed::KeyName::W;
-    if (configName == L"E") return LogiLed::KeyName::E;
-    if (configName == L"R") return LogiLed::KeyName::R;
-    if (configName == L"T") return LogiLed::KeyName::T;
-    if (configName == L"Y") return LogiLed::KeyName::Y;
-    if (configName == L"U") return LogiLed::KeyName::U;
-    if (configName == L"I") return LogiLed::KeyName::I;
-    if (configName == L"O") return LogiLed::KeyName::O;
-    if (configName == L"P") return LogiLed::KeyName::P;
-    if (configName == L"OPEN_BRACKET") return LogiLed::KeyName::OPEN_BRACKET;
-    if (configName == L"CLOSE_BRACKET") return LogiLed::KeyName::CLOSE_BRACKET;
-    if (configName == L"BACKSLASH") return LogiLed::KeyName::BACKSLASH;
-    if (configName == L"DELETE") return LogiLed::KeyName::KEYBOARD_DELETE;
-    if (configName == L"END") return LogiLed::KeyName::END;
-    if (configName == L"PAGE_DOWN") return LogiLed::KeyName::PAGE_DOWN;
-    if (configName == L"NUM_SEVEN") return LogiLed::KeyName::NUM_SEVEN;
-    if (configName == L"NUM_EIGHT") return LogiLed::KeyName::NUM_EIGHT;
-    if (configName == L"NUM_NINE") return LogiLed::KeyName::NUM_NINE;
-    if (configName == L"NUM_PLUS") return LogiLed::KeyName::NUM_PLUS;
-    if (configName == L"CAPS_LOCK") return LogiLed::KeyName::CAPS_LOCK;
-    if (configName == L"A") return LogiLed::KeyName::A;
-    if (configName == L"S") return LogiLed::KeyName::S;
-    if (configName == L"D") return LogiLed::KeyName::D;
-    if (configName == L"F") return LogiLed::KeyName::F;
-    if (configName == L"G") return LogiLed::KeyName::G;
-    if (configName == L"H") return LogiLed::KeyName::H;
-    if (configName == L"J") return LogiLed::KeyName::J;
-    if (configName == L"K") return LogiLed::KeyName::K;
-    if (configName == L"L") return LogiLed::KeyName::L;
-    if (configName == L"SEMICOLON") return LogiLed::KeyName::SEMICOLON;
-    if (configName == L"APOSTROPHE") return LogiLed::KeyName::APOSTROPHE;
-    if (configName == L"ENTER") return LogiLed::KeyName::ENTER;
-    if (configName == L"NUM_FOUR") return LogiLed::KeyName::NUM_FOUR;
-    if (configName == L"NUM_FIVE") return LogiLed::KeyName::NUM_FIVE;
-    if (configName == L"NUM_SIX") return LogiLed::KeyName::NUM_SIX;
-    if (configName == L"LEFT_SHIFT") return LogiLed::KeyName::LEFT_SHIFT;
-    if (configName == L"Z") return LogiLed::KeyName::Z;
-    if (configName == L"X") return LogiLed::KeyName::X;
-    if (configName == L"C") return LogiLed::KeyName::C;
-    if (configName == L"V") return LogiLed::KeyName::V;
-    if (configName == L"B") return LogiLed::KeyName::B;
-    if (configName == L"N") return LogiLed::KeyName::N;
-    if (configName == L"M") return LogiLed::KeyName::M;
-    if (configName == L"COMMA") return LogiLed::KeyName::COMMA;
-    if (configName == L"PERIOD") return LogiLed::KeyName::PERIOD;
-    if (configName == L"FORWARD_SLASH") return LogiLed::KeyName::FORWARD_SLASH;
-    if (configName == L"RIGHT_SHIFT") return LogiLed::KeyName::RIGHT_SHIFT;
-    if (configName == L"ARROW_UP") return LogiLed::KeyName::ARROW_UP;
-    if (configName == L"NUM_ONE") return LogiLed::KeyName::NUM_ONE;
-    if (configName == L"NUM_TWO") return LogiLed::KeyName::NUM_TWO;
-    if (configName == L"NUM_THREE") return LogiLed::KeyName::NUM_THREE;
-    if (configName == L"NUM_ENTER") return LogiLed::KeyName::NUM_ENTER;
-    if (configName == L"LEFT_CONTROL") return LogiLed::KeyName::LEFT_CONTROL;
-    if (configName == L"LEFT_WINDOWS") return LogiLed::KeyName::LEFT_WINDOWS;
-    if (configName == L"LEFT_ALT") return LogiLed::KeyName::LEFT_ALT;
-    if (configName == L"SPACE") return LogiLed::KeyName::SPACE;
-    if (configName == L"RIGHT_ALT") return LogiLed::KeyName::RIGHT_ALT;
-    if (configName == L"RIGHT_WINDOWS") return LogiLed::KeyName::RIGHT_WINDOWS;
-    if (configName == L"APPLICATION_SELECT") return LogiLed::KeyName::APPLICATION_SELECT;
-    if (configName == L"RIGHT_CONTROL") return LogiLed::KeyName::RIGHT_CONTROL;
-    if (configName == L"ARROW_LEFT") return LogiLed::KeyName::ARROW_LEFT;
-    if (configName == L"ARROW_DOWN") return LogiLed::KeyName::ARROW_DOWN;
-    if (configName == L"ARROW_RIGHT") return LogiLed::KeyName::ARROW_RIGHT;
-    if (configName == L"NUM_ZERO") return LogiLed::KeyName::NUM_ZERO;
-    if (configName == L"NUM_PERIOD") return LogiLed::KeyName::NUM_PERIOD;
-    if (configName == L"G_1") return LogiLed::KeyName::G_1;
-    if (configName == L"G_2") return LogiLed::KeyName::G_2;
-    if (configName == L"G_3") return LogiLed::KeyName::G_3;
-    if (configName == L"G_4") return LogiLed::KeyName::G_4;
-    if (configName == L"G_5") return LogiLed::KeyName::G_5;
-    if (configName == L"G_6") return LogiLed::KeyName::G_6;
-    if (configName == L"G_7") return LogiLed::KeyName::G_7;
-    if (configName == L"G_8") return LogiLed::KeyName::G_8;
-    if (configName == L"G_9") return LogiLed::KeyName::G_9;
-    if (configName == L"G_LOGO") return LogiLed::KeyName::G_LOGO;
-    if (configName == L"G_BADGE") return LogiLed::KeyName::G_BADGE;
-    return LogiLed::KeyName::ESC; // Default fallback
-}
-
-// Convert LogiLed::KeyName to config name (for INI export)
-std::wstring LogiLedKeyToConfigName(LogiLed::KeyName key) {
-    switch (key) {
-        case LogiLed::KeyName::ESC: return L"ESC";
-        case LogiLed::KeyName::F1: return L"F1";
-        case LogiLed::KeyName::F2: return L"F2";
-        case LogiLed::KeyName::F3: return L"F3";
-        case LogiLed::KeyName::F4: return L"F4";
-        case LogiLed::KeyName::F5: return L"F5";
-        case LogiLed::KeyName::F6: return L"F6";
-        case LogiLed::KeyName::F7: return L"F7";
-        case LogiLed::KeyName::F8: return L"F8";
-        case LogiLed::KeyName::F9: return L"F9";
-        case LogiLed::KeyName::F10: return L"F10";
-        case LogiLed::KeyName::F11: return L"F11";
-        case LogiLed::KeyName::F12: return L"F12";
-        case LogiLed::KeyName::PRINT_SCREEN: return L"PRINT_SCREEN";
-        case LogiLed::KeyName::SCROLL_LOCK: return L"SCROLL_LOCK";
-        case LogiLed::KeyName::PAUSE_BREAK: return L"PAUSE_BREAK";
-        case LogiLed::KeyName::TILDE: return L"TILDE";
-        case LogiLed::KeyName::ONE: return L"ONE";
-        case LogiLed::KeyName::TWO: return L"TWO";
-        case LogiLed::KeyName::THREE: return L"THREE";
-        case LogiLed::KeyName::FOUR: return L"FOUR";
-        case LogiLed::KeyName::FIVE: return L"FIVE";
-        case LogiLed::KeyName::SIX: return L"SIX";
-        case LogiLed::KeyName::SEVEN: return L"SEVEN";
-        case LogiLed::KeyName::EIGHT: return L"EIGHT";
-        case LogiLed::KeyName::NINE: return L"NINE";
-        case LogiLed::KeyName::ZERO: return L"ZERO";
-        case LogiLed::KeyName::MINUS: return L"MINUS";
-        case LogiLed::KeyName::EQUALS: return L"EQUALS";
-        case LogiLed::KeyName::BACKSPACE: return L"BACKSPACE";
-        case LogiLed::KeyName::INSERT: return L"INSERT";
-        case LogiLed::KeyName::HOME: return L"HOME";
-        case LogiLed::KeyName::PAGE_UP: return L"PAGE_UP";
-        case LogiLed::KeyName::NUM_LOCK: return L"NUM_LOCK";
-        case LogiLed::KeyName::NUM_SLASH: return L"NUM_SLASH";
-        case LogiLed::KeyName::NUM_ASTERISK: return L"NUM_ASTERISK";
-        case LogiLed::KeyName::NUM_MINUS: return L"NUM_MINUS";
-        case LogiLed::KeyName::TAB: return L"TAB";
-        case LogiLed::KeyName::Q: return L"Q";
-        case LogiLed::KeyName::W: return L"W";
-        case LogiLed::KeyName::E: return L"E";
-        case LogiLed::KeyName::R: return L"R";
-        case LogiLed::KeyName::T: return L"T";
-        case LogiLed::KeyName::Y: return L"Y";
-        case LogiLed::KeyName::U: return L"U";
-        case LogiLed::KeyName::I: return L"I";
-        case LogiLed::KeyName::O: return L"O";
-        case LogiLed::KeyName::P: return L"P";
-        case LogiLed::KeyName::OPEN_BRACKET: return L"OPEN_BRACKET";
-        case LogiLed::KeyName::CLOSE_BRACKET: return L"CLOSE_BRACKET";
-        case LogiLed::KeyName::BACKSLASH: return L"BACKSLASH";
-        case LogiLed::KeyName::KEYBOARD_DELETE: return L"DELETE";
-        case LogiLed::KeyName::END: return L"END";
-        case LogiLed::KeyName::PAGE_DOWN: return L"PAGE_DOWN";
-        case LogiLed::KeyName::NUM_SEVEN: return L"NUM_SEVEN";
-        case LogiLed::KeyName::NUM_EIGHT: return L"NUM_EIGHT";
-        case LogiLed::KeyName::NUM_NINE: return L"NUM_NINE";
-        case LogiLed::KeyName::NUM_PLUS: return L"NUM_PLUS";
-        case LogiLed::KeyName::CAPS_LOCK: return L"CAPS_LOCK";
-        case LogiLed::KeyName::A: return L"A";
-        case LogiLed::KeyName::S: return L"S";
-        case LogiLed::KeyName::D: return L"D";
-        case LogiLed::KeyName::F: return L"F";
-        case LogiLed::KeyName::G: return L"G";
-        case LogiLed::KeyName::H: return L"H";
-        case LogiLed::KeyName::J: return L"J";
-        case LogiLed::KeyName::K: return L"K";
-        case LogiLed::KeyName::L: return L"L";
-        case LogiLed::KeyName::SEMICOLON: return L"SEMICOLON";
-        case LogiLed::KeyName::APOSTROPHE: return L"APOSTROPHE";
-        case LogiLed::KeyName::ENTER: return L"ENTER";
-        case LogiLed::KeyName::NUM_FOUR: return L"NUM_FOUR";
-        case LogiLed::KeyName::NUM_FIVE: return L"NUM_FIVE";
-        case LogiLed::KeyName::NUM_SIX: return L"NUM_SIX";
-        case LogiLed::KeyName::LEFT_SHIFT: return L"LEFT_SHIFT";
-        case LogiLed::KeyName::Z: return L"Z";
-        case LogiLed::KeyName::X: return L"X";
-        case LogiLed::KeyName::C: return L"C";
-        case LogiLed::KeyName::V: return L"V";
-        case LogiLed::KeyName::B: return L"B";
-        case LogiLed::KeyName::N: return L"N";
-        case LogiLed::KeyName::M: return L"M";
-        case LogiLed::KeyName::COMMA: return L"COMMA";
-        case LogiLed::KeyName::PERIOD: return L"PERIOD";
-        case LogiLed::KeyName::FORWARD_SLASH: return L"FORWARD_SLASH";
-        case LogiLed::KeyName::RIGHT_SHIFT: return L"RIGHT_SHIFT";
-        case LogiLed::KeyName::ARROW_UP: return L"ARROW_UP";
-        case LogiLed::KeyName::NUM_ONE: return L"NUM_ONE";
-        case LogiLed::KeyName::NUM_TWO: return L"NUM_TWO";
-        case LogiLed::KeyName::NUM_THREE: return L"NUM_THREE";
-        case LogiLed::KeyName::NUM_ENTER: return L"NUM_ENTER";
-        case LogiLed::KeyName::LEFT_CONTROL: return L"LEFT_CONTROL";
-        case LogiLed::KeyName::LEFT_WINDOWS: return L"LEFT_WINDOWS";
-        case LogiLed::KeyName::LEFT_ALT: return L"LEFT_ALT";
-        case LogiLed::KeyName::SPACE: return L"SPACE";
-        case LogiLed::KeyName::RIGHT_ALT: return L"RIGHT_ALT";
-        case LogiLed::KeyName::RIGHT_WINDOWS: return L"RIGHT_WINDOWS";
-        case LogiLed::KeyName::APPLICATION_SELECT: return L"APPLICATION_SELECT";
-        case LogiLed::KeyName::RIGHT_CONTROL: return L"RIGHT_CONTROL";
-        case LogiLed::KeyName::ARROW_LEFT: return L"ARROW_LEFT";
-        case LogiLed::KeyName::ARROW_DOWN: return L"ARROW_DOWN";
-        case LogiLed::KeyName::ARROW_RIGHT: return L"ARROW_RIGHT";
-        case LogiLed::KeyName::NUM_ZERO: return L"NUM_ZERO";
-        case LogiLed::KeyName::NUM_PERIOD: return L"NUM_PERIOD";
-        case LogiLed::KeyName::G_1: return L"G_1";
-        case LogiLed::KeyName::G_2: return L"G_2";
-        case LogiLed::KeyName::G_3: return L"G_3";
-        case LogiLed::KeyName::G_4: return L"G_4";
-        case LogiLed::KeyName::G_5: return L"G_5";
-        case LogiLed::KeyName::G_6: return L"G_6";
-        case LogiLed::KeyName::G_7: return L"G_7";
-        case LogiLed::KeyName::G_8: return L"G_8";
-        case LogiLed::KeyName::G_9: return L"G_9";
-        case LogiLed::KeyName::G_LOGO: return L"G_LOGO";
-        case LogiLed::KeyName::G_BADGE: return L"G_BADGE";
-        default: return L"UNKNOWN";
-    }
+// Convert display name to LogiLed::KeyName (for config import/export)
+LogiLed::KeyName DisplayNameToLogiLedKey(const std::wstring& displayName) {
+    if (displayName == L"ESC") return LogiLed::KeyName::ESC;
+    if (displayName == L"F1") return LogiLed::KeyName::F1;
+    if (displayName == L"F2") return LogiLed::KeyName::F2;
+    if (displayName == L"F3") return LogiLed::KeyName::F3;
+    if (displayName == L"F4") return LogiLed::KeyName::F4;
+    if (displayName == L"F5") return LogiLed::KeyName::F5;
+    if (displayName == L"F6") return LogiLed::KeyName::F6;
+    if (displayName == L"F7") return LogiLed::KeyName::F7;
+    if (displayName == L"F8") return LogiLed::KeyName::F8;
+    if (displayName == L"F9") return LogiLed::KeyName::F9;
+    if (displayName == L"F10") return LogiLed::KeyName::F10;
+    if (displayName == L"F11") return LogiLed::KeyName::F11;
+    if (displayName == L"F12") return LogiLed::KeyName::F12;
+    if (displayName == L"PRINT") return LogiLed::KeyName::PRINT_SCREEN;
+    if (displayName == L"SCROLL") return LogiLed::KeyName::SCROLL_LOCK;
+    if (displayName == L"PAUSE") return LogiLed::KeyName::PAUSE_BREAK;
+    if (displayName == L"~") return LogiLed::KeyName::TILDE;
+    if (displayName == L"1") return LogiLed::KeyName::ONE;
+    if (displayName == L"2") return LogiLed::KeyName::TWO;
+    if (displayName == L"3") return LogiLed::KeyName::THREE;
+    if (displayName == L"4") return LogiLed::KeyName::FOUR;
+    if (displayName == L"5") return LogiLed::KeyName::FIVE;
+    if (displayName == L"6") return LogiLed::KeyName::SIX;
+    if (displayName == L"7") return LogiLed::KeyName::SEVEN;
+    if (displayName == L"8") return LogiLed::KeyName::EIGHT;
+    if (displayName == L"9") return LogiLed::KeyName::NINE;
+    if (displayName == L"0") return LogiLed::KeyName::ZERO;
+    if (displayName == L"-") return LogiLed::KeyName::MINUS;
+    if (displayName == L"=") return LogiLed::KeyName::EQUALS;
+    if (displayName == L"BACKSPACE") return LogiLed::KeyName::BACKSPACE;
+    if (displayName == L"INSERT") return LogiLed::KeyName::INSERT;
+    if (displayName == L"HOME") return LogiLed::KeyName::HOME;
+    if (displayName == L"PGUP") return LogiLed::KeyName::PAGE_UP;
+    if (displayName == L"NUMLOCK") return LogiLed::KeyName::NUM_LOCK;
+    if (displayName == L"NUM/") return LogiLed::KeyName::NUM_SLASH;
+    if (displayName == L"NUM*") return LogiLed::KeyName::NUM_ASTERISK;
+    if (displayName == L"NUM-") return LogiLed::KeyName::NUM_MINUS;
+    if (displayName == L"TAB") return LogiLed::KeyName::TAB;
+    if (displayName == L"Q") return LogiLed::KeyName::Q;
+    if (displayName == L"W") return LogiLed::KeyName::W;
+    if (displayName == L"E") return LogiLed::KeyName::E;
+    if (displayName == L"R") return LogiLed::KeyName::R;
+    if (displayName == L"T") return LogiLed::KeyName::T;
+    if (displayName == L"Y") return LogiLed::KeyName::Y;
+    if (displayName == L"U") return LogiLed::KeyName::U;
+    if (displayName == L"I") return LogiLed::KeyName::I;
+    if (displayName == L"O") return LogiLed::KeyName::O;
+    if (displayName == L"P") return LogiLed::KeyName::P;
+    if (displayName == L"[") return LogiLed::KeyName::OPEN_BRACKET;
+    if (displayName == L"]") return LogiLed::KeyName::CLOSE_BRACKET;
+    if (displayName == L"\\") return LogiLed::KeyName::BACKSLASH;
+    if (displayName == L"DELETE") return LogiLed::KeyName::KEYBOARD_DELETE;
+    if (displayName == L"END") return LogiLed::KeyName::END;
+    if (displayName == L"PGDN") return LogiLed::KeyName::PAGE_DOWN;
+    if (displayName == L"NUM7") return LogiLed::KeyName::NUM_SEVEN;
+    if (displayName == L"NUM8") return LogiLed::KeyName::NUM_EIGHT;
+    if (displayName == L"NUM9") return LogiLed::KeyName::NUM_NINE;
+    if (displayName == L"NUM+") return LogiLed::KeyName::NUM_PLUS;
+    if (displayName == L"CAPS") return LogiLed::KeyName::CAPS_LOCK;
+    if (displayName == L"A") return LogiLed::KeyName::A;
+    if (displayName == L"S") return LogiLed::KeyName::S;
+    if (displayName == L"D") return LogiLed::KeyName::D;
+    if (displayName == L"F") return LogiLed::KeyName::F;
+    if (displayName == L"G") return LogiLed::KeyName::G;
+    if (displayName == L"H") return LogiLed::KeyName::H;
+    if (displayName == L"J") return LogiLed::KeyName::J;
+    if (displayName == L"K") return LogiLed::KeyName::K;
+    if (displayName == L"L") return LogiLed::KeyName::L;
+    if (displayName == L";") return LogiLed::KeyName::SEMICOLON;
+    if (displayName == L"'") return LogiLed::KeyName::APOSTROPHE;
+    if (displayName == L"ENTER") return LogiLed::KeyName::ENTER;
+    if (displayName == L"NUM4") return LogiLed::KeyName::NUM_FOUR;
+    if (displayName == L"NUM5") return LogiLed::KeyName::NUM_FIVE;
+    if (displayName == L"NUM6") return LogiLed::KeyName::NUM_SIX;
+    if (displayName == L"LSHIFT") return LogiLed::KeyName::LEFT_SHIFT;
+    if (displayName == L"Z") return LogiLed::KeyName::Z;
+    if (displayName == L"X") return LogiLed::KeyName::X;
+    if (displayName == L"C") return LogiLed::KeyName::C;
+    if (displayName == L"V") return LogiLed::KeyName::V;
+    if (displayName == L"B") return LogiLed::KeyName::B;
+    if (displayName == L"N") return LogiLed::KeyName::N;
+    if (displayName == L"M") return LogiLed::KeyName::M;
+    if (displayName == L",") return LogiLed::KeyName::COMMA;
+    if (displayName == L".") return LogiLed::KeyName::PERIOD;
+    if (displayName == L"/") return LogiLed::KeyName::FORWARD_SLASH;
+    if (displayName == L"RSHIFT") return LogiLed::KeyName::RIGHT_SHIFT;
+    if (displayName == L"UP") return LogiLed::KeyName::ARROW_UP;
+    if (displayName == L"NUM1") return LogiLed::KeyName::NUM_ONE;
+    if (displayName == L"NUM2") return LogiLed::KeyName::NUM_TWO;
+    if (displayName == L"NUM3") return LogiLed::KeyName::NUM_THREE;
+    if (displayName == L"NUMENTER") return LogiLed::KeyName::NUM_ENTER;
+    if (displayName == L"LCTRL") return LogiLed::KeyName::LEFT_CONTROL;
+    if (displayName == L"LWIN") return LogiLed::KeyName::LEFT_WINDOWS;
+    if (displayName == L"LALT") return LogiLed::KeyName::LEFT_ALT;
+    if (displayName == L"SPACE") return LogiLed::KeyName::SPACE;
+    if (displayName == L"RALT") return LogiLed::KeyName::RIGHT_ALT;
+    if (displayName == L"RWIN") return LogiLed::KeyName::RIGHT_WINDOWS;
+    if (displayName == L"MENU") return LogiLed::KeyName::APPLICATION_SELECT;
+    if (displayName == L"RCTRL") return LogiLed::KeyName::RIGHT_CONTROL;
+    if (displayName == L"LEFT") return LogiLed::KeyName::ARROW_LEFT;
+    if (displayName == L"DOWN") return LogiLed::KeyName::ARROW_DOWN;
+    if (displayName == L"RIGHT") return LogiLed::KeyName::ARROW_RIGHT;
+    if (displayName == L"NUM0") return LogiLed::KeyName::NUM_ZERO;
+    if (displayName == L"NUM.") return LogiLed::KeyName::NUM_PERIOD;
+    if (displayName == L"G1") return LogiLed::KeyName::G_1;
+    if (displayName == L"G2") return LogiLed::KeyName::G_2;
+    if (displayName == L"G3") return LogiLed::KeyName::G_3;
+    if (displayName == L"G4") return LogiLed::KeyName::G_4;
+    if (displayName == L"G5") return LogiLed::KeyName::G_5;
+    if (displayName == L"G6") return LogiLed::KeyName::G_6;
+    if (displayName == L"G7") return LogiLed::KeyName::G_7;
+    if (displayName == L"G8") return LogiLed::KeyName::G_8;
+    if (displayName == L"G9") return LogiLed::KeyName::G_9;
+    
+    // Use a special invalid key value instead of ESC to indicate unknown keys
+    // TODO: Define INVALID_KEY in LogiLed enum or use std::optional
+    return LogiLed::KeyName::ESC; // Temporary fallback - consider using std::optional<LogiLed::KeyName> instead
 }
 
 // Format highlight keys for display in text field
@@ -484,12 +377,18 @@ std::wstring FormatHighlightKeysForDisplay(const std::vector<LogiLed::KeyName>& 
         return L"";
     }
     
+    // sort keys for consistent display
+    std::vector<LogiLed::KeyName> sortedKeys = keys;
+    std::sort(sortedKeys.begin(), sortedKeys.end(), [](LogiLed::KeyName a, LogiLed::KeyName b) {
+        return static_cast<int>(a) < static_cast<int>(b);
+    });
+
     std::wstring result;
-    for (size_t i = 0; i < keys.size(); ++i) {
+    for (size_t i = 0; i < sortedKeys.size(); ++i) {
         if (i > 0) {
             result += L" - ";
         }
-        result += LogiLedKeyToDisplayName(keys[i]);
+        result += LogiLedKeyToDisplayName(sortedKeys[i]);
     }
     return result;
 }
