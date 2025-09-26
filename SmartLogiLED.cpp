@@ -24,6 +24,8 @@
 #include <commdlg.h>
 #include <algorithm>
 #include <vector>
+#include <thread>
+#include <chrono>
 
 #define MAX_LOADSTRING 100
 
@@ -37,6 +39,11 @@ NOTIFYICONDATA nid;                            // Tray icon data
 
 // Start minimized setting
 bool startMinimized = false;
+
+// LED initialization variables
+static bool ledInitializationPending = false;
+static bool gHubWaitingMessageShown = false;
+static UINT_PTR gHubCheckTimer = 0;
 
 // Color settings for lock keys and default
 COLORREF capsLockColor = RGB(0, 179, 0); // Caps Lock color
@@ -78,6 +85,8 @@ void                UpdateAppProfileColorBoxes(HWND hWnd);
 void                UpdateLockKeysCheckbox(HWND hWnd);
 void                UpdateKeysButtonState(HWND hWnd);
 void                UpdateActionKeysButtonState(HWND hWnd);
+bool                WaitForLogitechGHub();
+void                InitializeLogitechLED(HWND hWnd);
 
 // Entry point for the application
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -180,6 +189,64 @@ void ShowTrayContextMenu(HWND hWnd) {
     SetForegroundWindow(hWnd); // Required for menu to disappear correctly
     TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hWnd, nullptr);
     DestroyMenu(hMenu);
+}
+
+// Check if Logitech G HUB is running
+bool WaitForLogitechGHub() {
+    // Check for Logitech G HUB process (regardless of window visibility)
+    return IsProcessRunning(L"lghub_agent.exe");
+}
+
+// Initialize Logitech LED SDK with G HUB dependency check
+void InitializeLogitechLED(HWND hWnd) {
+    if (!WaitForLogitechGHub()) {
+        ledInitializationPending = true;
+        if (!gHubWaitingMessageShown) {
+            MessageBox(hWnd, 
+                L"Waiting for Logitech G HUB to start...\n\n"
+                L"Please start Logitech G HUB software and the LED features will initialize automatically.",
+                L"SmartLogiLED - Waiting for G HUB", 
+                MB_OK | MB_ICONINFORMATION);
+            gHubWaitingMessageShown = true;
+        }
+        
+        // Start a timer to periodically check for G HUB (every 5 seconds)
+        if (gHubCheckTimer == 0) {
+            gHubCheckTimer = SetTimer(hWnd, 1001, 5000, nullptr);
+        }
+        return;
+    }
+
+    // Stop the timer if it's running
+    if (gHubCheckTimer != 0) {
+        KillTimer(hWnd, gHubCheckTimer);
+        gHubCheckTimer = 0;
+    }
+
+    // Initialize Logitech LED SDK
+    bool LedInitialized = LogiLedInit();
+    if (!LedInitialized) {
+        MessageBox(hWnd, L"Couldn't initialize LogiTech LED SDK", L"ERROR", MB_OK | MB_ICONERROR);
+        return;
+    } else if (!LogiLedSetTargetDevice(LOGI_DEVICETYPE_PERKEY_RGB)) {
+        MessageBox(hWnd, L"Couldn't set LOGI_DEVICETYPE_PERKEY_RGB mode", L"ERROR", MB_OK | MB_ICONERROR);
+        return;
+    }
+    
+    // Save current lighting state
+    LogiLedSaveCurrentLighting();
+
+    // Set all keys to default color
+    SetDefaultColor(defaultColor);
+
+    // Set colors for lock keys based on current state
+    SetLockKeysColor();
+    
+    ledInitializationPending = false;
+    gHubWaitingMessageShown = false;
+    
+    // Optional: Show success message (uncomment if desired)
+    // MessageBox(hWnd, L"Logitech LED initialized successfully!", L"SmartLogiLED", MB_OK | MB_ICONINFORMATION);
 }
 
 // Main window procedure (handles messages)
@@ -562,6 +629,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             if (hBrushAppColor) DeleteObject(hBrushAppColor);
             if (hBrushAppHighlightColor) DeleteObject(hBrushAppHighlightColor);
             if (hBrushAppActionColor) DeleteObject(hBrushAppActionColor);
+            
+            // Cleanup G HUB check timer
+            if (gHubCheckTimer != 0) {
+                KillTimer(hWnd, gHubCheckTimer);
+                gHubCheckTimer = 0;
+            }
+            
             RemoveTrayIcon();
             CleanupAppMonitoring(); // Cleanup app monitoring before other cleanup
             DisableKeyboardHook(); // Use managed hook cleanup
@@ -640,6 +714,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                 }
             }
             break;
+        case WM_TIMER:
+            // Handle timer messages
+            {
+                if (wParam == 1001 && ledInitializationPending) { // G HUB check timer
+                    if (WaitForLogitechGHub()) {
+                        InitializeLogitechLED(hWnd); // This will stop the timer and initialize LED
+                    }
+                }
+            }
+            break;
         default:
             return DefWindowProc(hWnd, message, wParam, lParam);
     }
@@ -711,24 +795,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    }
    UpdateWindow(hWnd);
 
-   // Initialize Logitech LED SDK
-   bool LedInitialized = LogiLedInit();
-   if (!LedInitialized) {
-       MessageBox(hWnd, L"Couldn't initialize LogiTech LED SDK", L"ERROR", 0);
-       return FALSE; // Changed from return 0 to return FALSE for consistency
-   } else if (!LogiLedSetTargetDevice(LOGI_DEVICETYPE_PERKEY_RGB)) {
-       MessageBox(hWnd, L"Couldn't set LOGI_DEVICETYPE_PERKEY_RGB mode", L"ERROR", 0);
-       return FALSE; // Changed from return 0 to return FALSE for consistency
-   }
-   
-   // Save current lighting state
-   LogiLedSaveCurrentLighting();
-
-   // Set all keys to default color
-   SetDefaultColor(defaultColor);
-
-   // Set colors for lock keys based on current state
-   SetLockKeysColor();
+   // Try to initialize Logitech LED SDK (will wait for G HUB if needed)
+   InitializeLogitechLED(hWnd);
 
    // Set main window handle for UI updates
    SetMainWindowHandle(hWnd);
@@ -964,5 +1032,3 @@ void UpdateLockKeysCheckbox(HWND hWnd) {
         }
     }
 }
-
-        

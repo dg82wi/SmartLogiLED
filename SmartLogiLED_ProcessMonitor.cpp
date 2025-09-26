@@ -74,6 +74,26 @@ std::vector<std::wstring> GetVisibleRunningProcesses() {
     return processes;
 }
 
+// Get list of all running processes (regardless of visibility)
+std::vector<std::wstring> GetAllRunningProcesses() {
+    std::vector<std::wstring> processes;
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    
+    if (hSnapshot != INVALID_HANDLE_VALUE) {
+        PROCESSENTRY32W pe32;
+        pe32.dwSize = sizeof(PROCESSENTRY32W);
+        
+        if (Process32FirstW(hSnapshot, &pe32)) {
+            do {
+                processes.push_back(std::wstring(pe32.szExeFile));
+            } while (Process32NextW(hSnapshot, &pe32));
+        }
+        CloseHandle(hSnapshot);
+    }
+    
+    return processes;
+}
+
 // Check if a specific app is running
 bool IsAppRunning(const std::wstring& appName) {
     std::vector<std::wstring> processes = GetVisibleRunningProcesses();
@@ -86,6 +106,25 @@ bool IsAppRunning(const std::wstring& appName) {
         std::transform(lowerProcess.begin(), lowerProcess.end(), lowerProcess.begin(), ::towlower);
         
         if (lowerProcess == lowerAppName) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// Check if a specific process is running (regardless of window visibility)
+bool IsProcessRunning(const std::wstring& processName) {
+    std::vector<std::wstring> processes = GetAllRunningProcesses();
+    
+    std::wstring lowerProcessName = processName;
+    std::transform(lowerProcessName.begin(), lowerProcessName.end(), lowerProcessName.begin(), ::towlower);
+    
+    for (const auto& process : processes) {
+        std::wstring lowerProcess = process;
+        std::transform(lowerProcess.begin(), lowerProcess.end(), lowerProcess.begin(), ::towlower);
+        
+        if (lowerProcess == lowerProcessName) {
             return true;
         }
     }
