@@ -202,11 +202,8 @@ void InitializeLogitechLED(HWND hWnd) {
     if (!WaitForLogitechGHub()) {
         ledInitializationPending = true;
         if (!gHubWaitingMessageShown) {
-            MessageBox(hWnd, 
-                L"Waiting for Logitech G HUB to start...\n\n"
-                L"Please start Logitech G HUB software and the LED features will initialize automatically.",
-                L"SmartLogiLED - Waiting for G HUB", 
-                MB_OK | MB_ICONINFORMATION);
+            // Update window title to indicate waiting for G HUB
+            SetWindowTextW(hWnd, L"SmartLogiLED - waiting for G HUB");
             gHubWaitingMessageShown = true;
         }
         
@@ -222,6 +219,9 @@ void InitializeLogitechLED(HWND hWnd) {
         KillTimer(hWnd, gHubCheckTimer);
         gHubCheckTimer = 0;
     }
+
+    // Revert window title back to normal
+    SetWindowTextW(hWnd, L"SmartLogiLED");
 
     // Initialize Logitech LED SDK
     bool LedInitialized = LogiLedInit();
@@ -244,9 +244,6 @@ void InitializeLogitechLED(HWND hWnd) {
     
     ledInitializationPending = false;
     gHubWaitingMessageShown = false;
-    
-    // Optional: Show success message (uncomment if desired)
-    // MessageBox(hWnd, L"Logitech LED initialized successfully!", L"SmartLogiLED", MB_OK | MB_ICONINFORMATION);
 }
 
 // Main window procedure (handles messages)
