@@ -14,6 +14,7 @@
 #include "SmartLogiLED_ProcessMonitor.h"
 #include "SmartLogiLED_Config.h"
 #include "SmartLogiLED_Constants.h"
+#include "SmartLogiLED_LockKeys.h"
 #include "Resource.h"
 #include <commdlg.h>
 #include <algorithm>
@@ -22,22 +23,81 @@
 // External variables
 extern HINSTANCE hInst;
 
+// ======================================================================
+// COLOR PICKER UTILITY FUNCTIONS
+// ======================================================================
+
+// Consolidated color picker utility function
+bool ShowColorPickerDialog(HWND hWnd, COLORREF& color) {
+    CHOOSECOLOR cc;
+    ZeroMemory(&cc, sizeof(cc));
+    cc.lStructSize = sizeof(cc);
+    cc.hwndOwner = hWnd;
+    cc.rgbResult = color;
+    COLORREF custColors[16] = {};
+    cc.lpCustColors = custColors;
+    cc.Flags = CC_FULLOPEN | CC_RGBINIT;
+    
+    if (ChooseColor(&cc)) {
+        color = cc.rgbResult;
+        return true;
+    }
+    return false;
+}
+
+// ======================================================================
+// DIALOG GLOBAL VARIABLES AND HELPER FUNCTIONS
+// ======================================================================
+
 // Global variables for Keys dialog
 static std::vector<LogiLed::KeyName> currentHighlightKeys;
 static std::wstring currentAppNameForKeys;
 static HHOOK keysDialogHook = nullptr;
+static AppColorProfile* savedActiveProfile = nullptr; // Store the active profile when dialog opens
 
 // Global variables for Action Keys dialog
 static std::vector<LogiLed::KeyName> currentActionKeys;
 static std::wstring currentAppNameForActionKeys;
 static HHOOK actionKeysDialogHook = nullptr;
+static AppColorProfile* savedActiveProfileForActionKeys = nullptr; // Store the active profile when dialog opens
 
 // Forward declarations for main window UI functions (implemented in main file)
 extern void PopulateAppProfileCombo(HWND hCombo);
 extern void UpdateCurrentProfileLabel(HWND hWnd);
-extern void UpdateRemoveButtonState(HWND hWnd);
 extern void UpdateAppProfileColorBoxes(HWND hWnd);
 extern void UpdateLockKeysCheckbox(HWND hWnd);
+extern void UpdateAllProfileUIElements(HWND hWnd); // Updated to use new generic UI update function
+
+// Consolidated color application function with flexible behavior control
+void ApplyProfileColors(AppColorProfile* profile, bool updateHookState = true) {
+    if (!profile) {
+        // No profile - use default colors and enable lock keys
+        extern COLORREF defaultColor;
+        SetDefaultColor(defaultColor);
+        SetLockKeysColor();
+        if (updateHookState) {
+            UpdateKeyboardHookState();
+        }
+        return;
+    }
+    
+    // Apply profile colors
+    SetDefaultColor(profile->appColor);
+    SetLockKeysColorWithProfile(profile);
+    SetHighlightKeysColorWithProfile(profile);
+    SetActionKeysColorWithProfile(profile);
+    
+    if (updateHookState) {
+        UpdateKeyboardHookState();
+    }
+}
+
+// Helper function to restore the original active profile colors
+void RestoreActiveProfileColors() {
+    // Find the currently active profile and restore its colors
+    AppColorProfile* activeProfile = GetDisplayedProfile();
+    ApplyProfileColors(activeProfile, true);
+}
 
 // Callback function for the About dialog box
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
@@ -93,11 +153,11 @@ INT_PTR CALLBACK Help(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 
 // Low-level keyboard hook for the Keys dialog
 LRESULT CALLBACK KeysDialogKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode >= 0 && wParam == WM_KEYDOWN) {
+    if (nCode >= 0 && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)) {
         KBDLLHOOKSTRUCT* pKeyStruct = (KBDLLHOOKSTRUCT*)lParam;
         
-        // Convert virtual key to LogiLed key
-        LogiLed::KeyName logiKey = VirtualKeyToLogiLedKey(pKeyStruct->vkCode);
+        // Convert virtual key to LogiLed key with flags for proper ENTER/NUM_ENTER distinction
+        LogiLed::KeyName logiKey = VirtualKeyToLogiLedKey(pKeyStruct->vkCode, pKeyStruct->flags);
         
         // Check if key is already in the list
         auto it = std::find(currentHighlightKeys.begin(), currentHighlightKeys.end(), logiKey);
@@ -120,6 +180,19 @@ LRESULT CALLBACK KeysDialogKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
             }
         }
         
+        // Apply the current profile's colors temporarily to show the updated keys
+        if (!currentAppNameForKeys.empty()) {
+            AppColorProfile* profile = GetAppProfileByName(currentAppNameForKeys);
+            if (profile) {
+                // Create a temporary profile with current highlight keys for display
+                AppColorProfile tempProfile = *profile;
+                tempProfile.highlightKeys = currentHighlightKeys;
+                
+                // Use the consolidated function to apply colors consistently
+                ApplyProfileColors(&tempProfile, false); // Don't update hook state during temporary preview
+            }
+        }
+        
         // Prevent the key from being processed by other applications
         return 1;
     }
@@ -134,6 +207,9 @@ INT_PTR CALLBACK KeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
     {
     case WM_INITDIALOG:
     {
+        // Store the currently active profile to restore later
+        savedActiveProfile = GetDisplayedProfile();
+        
         // Get the app name and current keys from the selected profile
         HWND hMainWnd = GetParent(hDlg);
         HWND hCombo = GetDlgItem(hMainWnd, IDC_COMBO_APPPROFILE);
@@ -149,6 +225,9 @@ INT_PTR CALLBACK KeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
                 AppColorProfile* profile = GetAppProfileByName(currentAppNameForKeys);
                 if (profile) {
                     currentHighlightKeys = profile->highlightKeys;
+                    
+                    // Apply the edited profile's colors temporarily
+                    ApplyProfileColors(profile, false); // Don't update hook state during editing
                 } else {
                     currentHighlightKeys.clear();
                 }
@@ -171,6 +250,19 @@ INT_PTR CALLBACK KeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
             // Clear all highlight keys
             currentHighlightKeys.clear();
             SetDlgItemTextW(hDlg, IDC_EDIT_KEYS, L"");
+            
+            // Apply the current profile's colors with no highlight keys
+            if (!currentAppNameForKeys.empty()) {
+                AppColorProfile* profile = GetAppProfileByName(currentAppNameForKeys);
+                if (profile) {
+                    // Create a temporary profile with no highlight keys for display
+                    AppColorProfile tempProfile = *profile;
+                    tempProfile.highlightKeys.clear();
+                    
+                    // Use the consolidated function to apply colors consistently
+                    ApplyProfileColors(&tempProfile, false); // Don't update hook state during preview
+                }
+            }
             return (INT_PTR)TRUE;
             
         case IDC_BUTTON_DONE_KEYS:
@@ -187,6 +279,10 @@ INT_PTR CALLBACK KeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
                 keysDialogHook = nullptr;
             }
             
+            // Restore the original active profile colors
+            RestoreActiveProfileColors();
+            savedActiveProfile = nullptr;
+            
             EndDialog(hDlg, LOWORD(wParam));
             return (INT_PTR)TRUE;
             
@@ -196,6 +292,10 @@ INT_PTR CALLBACK KeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
                 UnhookWindowsHookEx(keysDialogHook);
                 keysDialogHook = nullptr;
             }
+            
+            // Restore the original active profile colors
+            RestoreActiveProfileColors();
+            savedActiveProfile = nullptr;
             
             EndDialog(hDlg, LOWORD(wParam));
             return (INT_PTR)TRUE;
@@ -209,6 +309,10 @@ INT_PTR CALLBACK KeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
             keysDialogHook = nullptr;
         }
         
+        // Restore the original active profile colors
+        RestoreActiveProfileColors();
+        savedActiveProfile = nullptr;
+        
         EndDialog(hDlg, IDCANCEL);
         return (INT_PTR)TRUE;
     }
@@ -217,11 +321,11 @@ INT_PTR CALLBACK KeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
 
 // Low-level keyboard hook for the Action Keys dialog
 LRESULT CALLBACK ActionKeysDialogKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode >= 0 && wParam == WM_KEYDOWN) {
+    if (nCode >= 0 && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)) {
         KBDLLHOOKSTRUCT* pKeyStruct = (KBDLLHOOKSTRUCT*)lParam;
         
-        // Convert virtual key to LogiLed key
-        LogiLed::KeyName logiKey = VirtualKeyToLogiLedKey(pKeyStruct->vkCode);
+        // Convert virtual key to LogiLed key with flags for proper ENTER/NUM_ENTER distinction
+        LogiLed::KeyName logiKey = VirtualKeyToLogiLedKey(pKeyStruct->vkCode, pKeyStruct->flags);
         
         // Check if key is already in the list
         auto it = std::find(currentActionKeys.begin(), currentActionKeys.end(), logiKey);
@@ -244,6 +348,19 @@ LRESULT CALLBACK ActionKeysDialogKeyboardProc(int nCode, WPARAM wParam, LPARAM l
             }
         }
         
+        // Apply the current profile's colors temporarily to show the updated keys
+        if (!currentAppNameForActionKeys.empty()) {
+            AppColorProfile* profile = GetAppProfileByName(currentAppNameForActionKeys);
+            if (profile) {
+                // Create a temporary profile with current action keys for display
+                AppColorProfile tempProfile = *profile;
+                tempProfile.actionKeys = currentActionKeys;
+                
+                // Use the consolidated function to apply colors consistently
+                ApplyProfileColors(&tempProfile, false); // Don't update hook state during temporary preview
+            }
+        }
+        
         // Prevent the key from being processed by other applications
         return 1;
     }
@@ -258,6 +375,9 @@ INT_PTR CALLBACK ActionKeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM
     {
     case WM_INITDIALOG:
     {
+        // Store the currently active profile to restore later
+        savedActiveProfileForActionKeys = GetDisplayedProfile();
+        
         // Set the dialog title
         SetWindowTextW(hDlg, L"Configure Action Keys");
         
@@ -276,6 +396,9 @@ INT_PTR CALLBACK ActionKeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM
                 AppColorProfile* profile = GetAppProfileByName(currentAppNameForActionKeys);
                 if (profile) {
                     currentActionKeys = profile->actionKeys;
+                    
+                    // Apply the edited profile's colors temporarily
+                    ApplyProfileColors(profile, false); // Don't update hook state during editing
                 } else {
                     currentActionKeys.clear();
                 }
@@ -298,6 +421,19 @@ INT_PTR CALLBACK ActionKeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM
             // Clear all action keys
             currentActionKeys.clear();
             SetDlgItemTextW(hDlg, IDC_EDIT_KEYS, L"");
+            
+            // Apply the current profile's colors with no action keys
+            if (!currentAppNameForActionKeys.empty()) {
+                AppColorProfile* profile = GetAppProfileByName(currentAppNameForActionKeys);
+                if (profile) {
+                    // Create a temporary profile with no action keys for display
+                    AppColorProfile tempProfile = *profile;
+                    tempProfile.actionKeys.clear();
+                    
+                    // Use the consolidated function to apply colors consistently
+                    ApplyProfileColors(&tempProfile, false); // Don't update hook state during preview
+                }
+            }
             return (INT_PTR)TRUE;
             
         case IDC_BUTTON_DONE_KEYS:
@@ -314,6 +450,10 @@ INT_PTR CALLBACK ActionKeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM
                 actionKeysDialogHook = nullptr;
             }
             
+            // Restore the original active profile colors
+            RestoreActiveProfileColors();
+            savedActiveProfileForActionKeys = nullptr;
+            
             EndDialog(hDlg, LOWORD(wParam));
             return (INT_PTR)TRUE;
             
@@ -323,6 +463,10 @@ INT_PTR CALLBACK ActionKeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM
                 UnhookWindowsHookEx(actionKeysDialogHook);
                 actionKeysDialogHook = nullptr;
             }
+            
+            // Restore the original active profile colors
+            RestoreActiveProfileColors();
+            savedActiveProfileForActionKeys = nullptr;
             
             EndDialog(hDlg, LOWORD(wParam));
             return (INT_PTR)TRUE;
@@ -335,6 +479,10 @@ INT_PTR CALLBACK ActionKeysDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM
             UnhookWindowsHookEx(actionKeysDialogHook);
             actionKeysDialogHook = nullptr;
         }
+        
+        // Restore the original active profile colors
+        RestoreActiveProfileColors();
+        savedActiveProfileForActionKeys = nullptr;
         
         EndDialog(hDlg, IDCANCEL);
         return (INT_PTR)TRUE;
@@ -355,8 +503,8 @@ INT_PTR CALLBACK AddProfileDialog(HWND hDlg, UINT message, WPARAM wParam, LPARAM
                 // Clear the combo box first
                 SendMessage(hCombo, CB_RESETCONTENT, 0, 0);
                 
-                // Get visible running processes
-                std::vector<std::wstring> processes = GetVisibleRunningProcesses();
+                // Get visible and minimized running processes
+                std::vector<std::wstring> processes = GetVisibleAndMinimizedRunningProcesses();
                 
                 // Get existing profiles to filter out apps that already have profiles
                 std::vector<AppColorProfile> existingProfiles = GetAppColorProfilesCopy();
@@ -504,15 +652,13 @@ void ShowAddProfileDialog(HWND hWnd) {
     DialogBox(hInst, MAKEINTRESOURCE(IDD_ADDPROFILEBOX), hWnd, AddProfileDialog);
 }
 
-// Refresh the app profile combo box
+// Refresh the app profile combo box using generic UI update function
 void RefreshAppProfileCombo(HWND hWnd) {
     HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
     if (hCombo) {
         PopulateAppProfileCombo(hCombo);
-        UpdateCurrentProfileLabel(hWnd);
-        UpdateRemoveButtonState(hWnd);
-        UpdateAppProfileColorBoxes(hWnd);
-        UpdateLockKeysCheckbox(hWnd);
+        // Use the new generic function to update all UI elements at once
+        UpdateAllProfileUIElements(hWnd);
     }
 }
 
@@ -543,42 +689,38 @@ void ShowAppColorPicker(HWND hWnd, int colorType) {
     
     // Get current color based on type: 0 = app color, 1 = highlight color, 2 = action color
     COLORREF currentColor;
+    ColorUpdateType updateType;
+    
     switch (colorType) {
         case 1: // Highlight color
             currentColor = profile->appHighlightColor;
+            updateType = ColorUpdateType::HighlightColor;
             break;
         case 2: // Action color
             currentColor = profile->appActionColor;
+            updateType = ColorUpdateType::ActionColor;
             break;
         default: // App color
             currentColor = profile->appColor;
+            updateType = ColorUpdateType::AppColor;
             break;
     }
     
-    // Show color picker
-    CHOOSECOLOR cc;
-    ZeroMemory(&cc, sizeof(cc));
-    cc.lStructSize = sizeof(cc);
-    cc.hwndOwner = hWnd;
-    cc.rgbResult = currentColor;
-    COLORREF custColors[16] = {};
-    cc.lpCustColors = custColors;
-    cc.Flags = CC_FULLOPEN | CC_RGBINIT;
-    
-    if (ChooseColor(&cc)) {
-        // Update the profile color based on type
+    // Show color picker using consolidated utility
+    if (ShowColorPickerDialog(hWnd, currentColor)) {
+        // Update the profile color using the generic function
+        UpdateAppProfileColorProperty(appName, currentColor, updateType);
+        
+        // Update registry based on type
         switch (colorType) {
             case 1: // Highlight color
-                UpdateAppProfileHighlightColor(appName, cc.rgbResult);
-                UpdateAppProfileHighlightColorInRegistry(appName, cc.rgbResult);
+                UpdateAppProfileHighlightColorInRegistry(appName, currentColor);
                 break;
             case 2: // Action color
-                UpdateAppProfileActionColor(appName, cc.rgbResult);
-                UpdateAppProfileActionColorInRegistry(appName, cc.rgbResult);
+                UpdateAppProfileActionColorInRegistry(appName, currentColor);
                 break;
             default: // App color
-                UpdateAppProfileColor(appName, cc.rgbResult);
-                UpdateAppProfileColorInRegistry(appName, cc.rgbResult);
+                UpdateAppProfileColorInRegistry(appName, currentColor);
                 break;
         }
         

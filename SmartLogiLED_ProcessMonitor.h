@@ -12,3 +12,4 @@ void CleanupAppMonitoring();
 bool IsAppRunning(const std::wstring& appName);
 bool IsProcessRunning(const std::wstring& processName); // New function for any process detection
 std::vector<std::wstring> GetVisibleRunningProcesses();
+std::vector<std::wstring> GetVisibleAndMinimizedRunningProcesses(); // New function including minimized apps

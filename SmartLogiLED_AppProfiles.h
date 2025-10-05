@@ -8,6 +8,13 @@
 #include <vector>
 #include <string>
 
+// Enum to specify which color property to update
+enum class ColorUpdateType {
+    AppColor,
+    HighlightColor,
+    ActionColor
+};
+
 // App profile management functions
 void AddAppColorProfile(const std::wstring& appName, COLORREF color, bool lockKeysEnabled);
 void RemoveAppColorProfile(const std::wstring& appName);
@@ -16,17 +23,13 @@ std::vector<AppColorProfile> GetAppColorProfilesCopy();
 AppColorProfile* GetDisplayedProfile();
 AppColorProfile* GetAppProfileByName(const std::wstring& appName);
 
-// App profile update functions
-void UpdateAppProfileColor(const std::wstring& appName, COLORREF newAppColor);
-// Update app profile highlight color
-void UpdateAppProfileHighlightColor(const std::wstring& appName, COLORREF newHighlightColor);
-// Update app profile action color
-void UpdateAppProfileActionColor(const std::wstring& appName, COLORREF newActionColor);
-// Update app profile lock keys enabled setting
+// Generic function to update any color property of an app profile
+void UpdateAppProfileColorProperty(const std::wstring& appName, COLORREF newColor, ColorUpdateType colorType);
+
+// App profile update functions - These have been consolidated into a generic function internally
+// but maintain the same public API for backward compatibility
 void UpdateAppProfileLockKeysEnabled(const std::wstring& appName, bool lockKeysEnabled);
-// Update app profile highlight keys
 void UpdateAppProfileHighlightKeys(const std::wstring& appName, const std::vector<LogiLed::KeyName>& highlightKeys);
-// Update app profile action keys
 void UpdateAppProfileActionKeys(const std::wstring& appName, const std::vector<LogiLed::KeyName>& actionKeys);
 
 // Message handlers for app monitoring

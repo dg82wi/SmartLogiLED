@@ -20,6 +20,39 @@ void AppMonitorThreadProc();
 std::vector<std::wstring> GetVisibleRunningProcesses();
 bool IsProcessVisible(DWORD processId);
 
+// Check if a process has visible windows (including minimized)
+bool IsProcessVisibleOrMinimized(DWORD processId) {
+    struct EnumData {
+        DWORD processId;
+        bool hasVisibleWindow;
+    };
+    
+    EnumData enumData = { processId, false };
+    
+    EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
+        EnumData* data = reinterpret_cast<EnumData*>(lParam);
+        
+        DWORD windowProcessId;
+        GetWindowThreadProcessId(hwnd, &windowProcessId);
+        
+        if (windowProcessId == data->processId) {
+            // Include both visible and minimized windows
+            if (IsWindowVisible(hwnd)) {
+                if (GetWindow(hwnd, GW_OWNER) == NULL) {
+                    WCHAR windowTitle[256];
+                    if (GetWindowTextW(hwnd, windowTitle, sizeof(windowTitle) / sizeof(WCHAR)) > 0) {
+                        data->hasVisibleWindow = true;
+                        return FALSE; // Stop enumeration
+                    }
+                }
+            }
+        }
+        return TRUE; // Continue enumeration
+    }, reinterpret_cast<LPARAM>(&enumData));
+    
+    return enumData.hasVisibleWindow;
+}
+
 // Check if a process has visible windows
 bool IsProcessVisible(DWORD processId) {
     struct EnumData {
@@ -50,6 +83,28 @@ bool IsProcessVisible(DWORD processId) {
     }, reinterpret_cast<LPARAM>(&enumData));
     
     return enumData.hasVisibleWindow;
+}
+
+// Get list of currently running processes including minimized ones
+std::vector<std::wstring> GetVisibleAndMinimizedRunningProcesses() {
+    std::vector<std::wstring> processes;
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    
+    if (hSnapshot != INVALID_HANDLE_VALUE) {
+        PROCESSENTRY32W pe32;
+        pe32.dwSize = sizeof(PROCESSENTRY32W);
+        
+        if (Process32FirstW(hSnapshot, &pe32)) {
+            do {
+                if (IsProcessVisibleOrMinimized(pe32.th32ProcessID)) {
+                    processes.push_back(std::wstring(pe32.szExeFile));
+                }
+            } while (Process32NextW(hSnapshot, &pe32));
+        }
+        CloseHandle(hSnapshot);
+    }
+    
+    return processes;
 }
 
 // Get list of currently running visible processes

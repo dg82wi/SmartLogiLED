@@ -250,7 +250,7 @@ std::wstring GetApplicationDirectory() {
 std::wstring GetDefaultExportDirectory() {
     std::wstring appDir = GetApplicationDirectory();
     if (appDir.empty()) {
-        return L"";
+        return L"";;
     }
     
     std::wstring exportDir = appDir + L"\\AppProfiles";
@@ -649,8 +649,8 @@ void ImportProfileFromIniFile(HWND hWnd) {
             AddAppColorProfile(importedProfile.appName, importedProfile.appColor, importedProfile.lockKeysEnabled);
             
             // Update the highlight color, action color and keys (AddAppColorProfile doesn't handle these)
-            UpdateAppProfileHighlightColor(importedProfile.appName, importedProfile.appHighlightColor);
-            UpdateAppProfileActionColor(importedProfile.appName, importedProfile.appActionColor);
+            UpdateAppProfileColorProperty(importedProfile.appName, importedProfile.appHighlightColor, ColorUpdateType::HighlightColor);
+            UpdateAppProfileColorProperty(importedProfile.appName, importedProfile.appActionColor, ColorUpdateType::ActionColor);
             UpdateAppProfileHighlightKeys(importedProfile.appName, importedProfile.highlightKeys);
             UpdateAppProfileActionKeys(importedProfile.appName, importedProfile.actionKeys);
             

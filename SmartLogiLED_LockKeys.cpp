@@ -5,6 +5,8 @@
 #include "SmartLogiLED.h"
 #include "SmartLogiLED_LockKeys.h"
 #include "SmartLogiLED_AppProfiles.h"
+#include "SmartLogiLED_Config.h"
+#include "SmartLogiLED_Dialogs.h"
 #include "SmartLogiLED_Constants.h"
 #include "LogitechLEDLib.h"
 #include "Resource.h"
@@ -105,23 +107,6 @@ void SetActionKeysColorWithProfile(AppColorProfile* displayedProfile) {
     // Apply action color to all keys in the action list
     for (const auto& key : displayedProfile->actionKeys) {
         SetKeyColor(key, displayedProfile->appActionColor);
-    }
-}
-
-// Show color picker dialog and update color
-void ShowColorPicker(HWND hWnd, COLORREF& color, LogiLed::KeyName key) {
-    CHOOSECOLOR cc;
-    ZeroMemory(&cc, sizeof(cc));
-    cc.lStructSize = sizeof(cc);
-    cc.hwndOwner = hWnd;
-    cc.rgbResult = color;
-    COLORREF custColors[16] = {};
-    cc.lpCustColors = custColors;
-    cc.Flags = CC_FULLOPEN | CC_RGBINIT;
-    if (ChooseColor(&cc)) {
-        color = cc.rgbResult;
-        // The caller is responsible for updating the key color and UI.
-        // This makes the function's purpose clearer.
     }
 }
 

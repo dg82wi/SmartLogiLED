@@ -598,6 +598,12 @@ AppColorProfile* GetDisplayedProfile() {
     return GetDisplayedProfileInternal();
 }
 
+// Get app profile by name
+AppColorProfile* GetAppProfileByName(const std::wstring& appName) {
+    std::lock_guard<std::mutex> lock(appProfilesMutex);
+    return FindProfileByNameInternal(appName);
+}
+
 // Internal version that assumes mutex is already locked (DEPRECATED - use GetDisplayedProfileInternal)
 AppColorProfile* GetDisplayedProfileUnsafe() {
     return GetDisplayedProfileInternal();
@@ -609,8 +615,8 @@ std::vector<std::wstring> GetActivationHistory() {
     return std::vector<std::wstring>(activationHistory.begin(), activationHistory.end());
 }
 
-// Update app profile color
-void UpdateAppProfileColor(const std::wstring& appName, COLORREF newAppColor) {
+// Generic function to update any color property of an app profile
+void UpdateAppProfileColorProperty(const std::wstring& appName, COLORREF newColor, ColorUpdateType colorType) {
     AppColorProfile* activeProfile = nullptr;
     
     // Phase 1: Update profile under lock
@@ -619,7 +625,18 @@ void UpdateAppProfileColor(const std::wstring& appName, COLORREF newAppColor) {
         
         AppColorProfile* profile = FindProfileByNameInternal(appName);
         if (profile) {
-            profile->appColor = newAppColor;
+            // Update the appropriate color property
+            switch (colorType) {
+                case ColorUpdateType::AppColor:
+                    profile->appColor = newColor;
+                    break;
+                case ColorUpdateType::HighlightColor:
+                    profile->appHighlightColor = newColor;
+                    break;
+                case ColorUpdateType::ActionColor:
+                    profile->appActionColor = newColor;
+                    break;
+            }
             
             // If this profile is currently displayed, we need to update colors
             if (profile->isProfileCurrInUse) {
@@ -630,145 +647,102 @@ void UpdateAppProfileColor(const std::wstring& appName, COLORREF newAppColor) {
     
     // Phase 2: Apply colors without holding mutex
     if (activeProfile) {
+        // Apply different update strategies based on color type
+        switch (colorType) {
+            case ColorUpdateType::AppColor:
+                // App color changes require full profile color reapplication
+                ApplyProfileColorsInternal(activeProfile);
+                break;
+            case ColorUpdateType::HighlightColor:
+                // Only update highlight keys
+                SetHighlightKeysColorWithProfile(activeProfile);
+                break;
+            case ColorUpdateType::ActionColor:
+                // Only update action keys
+                SetActionKeysColorWithProfile(activeProfile);
+                break;
+        }
+    }
+}
+
+// ======================================================================
+// GENERIC APP PROFILE UPDATE FUNCTION
+// ======================================================================
+
+// Enum to specify which property to update
+enum class ProfileUpdateType {
+    LockKeysEnabled,
+    HighlightKeys,
+    ActionKeys
+};
+
+void UpdateAppProfileProperty(const std::wstring& appName, bool value) {
+    AppColorProfile* activeProfile = nullptr;
+
+    // Phase 1: Update profile under lock
+    {
+        std::lock_guard<std::mutex> lock(appProfilesMutex);
+
+        AppColorProfile* profile = FindProfileByNameInternal(appName);
+        if (profile) {
+            profile->lockKeysEnabled = value;
+
+            if (profile->isProfileCurrInUse) {
+                activeProfile = profile;
+            }
+        }
+    } // Mutex released here
+
+    // Phase 2: Apply changes without holding mutex
+    if (activeProfile) {
         ApplyProfileColorsInternal(activeProfile);
     }
 }
 
-// Update app profile highlight color
-void UpdateAppProfileHighlightColor(const std::wstring& appName, COLORREF newHighlightColor) {
+void UpdateAppProfileProperty(const std::wstring& appName, const std::vector<LogiLed::KeyName>& value, ProfileUpdateType updateType) {
     AppColorProfile* activeProfile = nullptr;
-    
+
     // Phase 1: Update profile under lock
     {
         std::lock_guard<std::mutex> lock(appProfilesMutex);
-        
+
         AppColorProfile* profile = FindProfileByNameInternal(appName);
         if (profile) {
-            profile->appHighlightColor = newHighlightColor;
-            
-            // If this profile is currently displayed, we need to update highlight keys
+            switch (updateType) {
+            case ProfileUpdateType::HighlightKeys:
+                profile->highlightKeys = value;
+                // Remove any keys that are now in highlightKeys from actionKeys to prevent conflicts
+                RemoveKeysFromListInternal(profile->actionKeys, value);
+                break;
+            case ProfileUpdateType::ActionKeys:
+                profile->actionKeys = value;
+                // Remove any keys that are now in actionKeys from highlightKeys to prevent conflicts
+                RemoveKeysFromListInternal(profile->highlightKeys, value);
+                break;
+            }
+
             if (profile->isProfileCurrInUse) {
                 activeProfile = profile;
             }
         }
     } // Mutex released here
-    
-    // Phase 2: Apply highlight colors without holding mutex
+
+    // Phase 2: Apply changes without holding mutex
     if (activeProfile) {
-        SetHighlightKeysColorWithProfile(activeProfile);
+        ApplyProfileColorsInternal(activeProfile);
     }
 }
 
-// Update app profile action color
-void UpdateAppProfileActionColor(const std::wstring& appName, COLORREF newActionColor) {
-    AppColorProfile* activeProfile = nullptr;
-    
-    // Phase 1: Update profile under lock
-    {
-        std::lock_guard<std::mutex> lock(appProfilesMutex);
-        
-        AppColorProfile* profile = FindProfileByNameInternal(appName);
-        if (profile) {
-            profile->appActionColor = newActionColor;
-            
-            // If this profile is currently displayed, we need to update action keys
-            if (profile->isProfileCurrInUse) {
-                activeProfile = profile;
-            }
-        }
-    } // Mutex released here
-    
-    // Phase 2: Apply action colors without holding mutex
-    if (activeProfile) {
-        SetActionKeysColorWithProfile(activeProfile);
-    }
-}
-
-// Update app profile lock keys enabled setting
 void UpdateAppProfileLockKeysEnabled(const std::wstring& appName, bool lockKeysEnabled) {
-    AppColorProfile* activeProfile = nullptr;
-    
-    // Phase 1: Update profile under lock
-    {
-        std::lock_guard<std::mutex> lock(appProfilesMutex);
-        
-        AppColorProfile* profile = FindProfileByNameInternal(appName);
-        if (profile) {
-            profile->lockKeysEnabled = lockKeysEnabled;
-            
-            // If this profile is currently displayed, we need to update lock keys behavior
-            if (profile->isProfileCurrInUse) {
-                activeProfile = profile;
-            }
-        }
-    } // Mutex released here
-    
-    // Phase 2: Apply lock keys behavior without holding mutex
-    if (activeProfile) {
-        ApplyProfileColorsInternal(activeProfile);
-    }
+    UpdateAppProfileProperty(appName, lockKeysEnabled);
 }
 
-// Get app profile by name
-AppColorProfile* GetAppProfileByName(const std::wstring& appName) {
-    std::lock_guard<std::mutex> lock(appProfilesMutex);
-    return FindProfileByNameInternal(appName);
-}
-
-// Update app profile highlight keys
 void UpdateAppProfileHighlightKeys(const std::wstring& appName, const std::vector<LogiLed::KeyName>& highlightKeys) {
-    AppColorProfile* activeProfile = nullptr;
-    
-    // Phase 1: Update profile under lock
-    {
-        std::lock_guard<std::mutex> lock(appProfilesMutex);
-        
-        AppColorProfile* profile = FindProfileByNameInternal(appName);
-        if (profile) {
-            profile->highlightKeys = highlightKeys;
-            
-            // Remove any keys that are now in highlightKeys from actionKeys to prevent conflicts
-            RemoveKeysFromListInternal(profile->actionKeys, highlightKeys);
-            
-            // If this profile is currently displayed, we need to update highlight keys
-            if (profile->isProfileCurrInUse) {
-                activeProfile = profile;
-            }
-        }
-    } // Mutex released here
-    
-    // Phase 2: Apply highlight keys without holding mutex
-    if (activeProfile) {
-        ApplyProfileColorsInternal(activeProfile);
-    }
+    UpdateAppProfileProperty(appName, highlightKeys, ProfileUpdateType::HighlightKeys);
 }
 
-// Update app profile action keys
 void UpdateAppProfileActionKeys(const std::wstring& appName, const std::vector<LogiLed::KeyName>& actionKeys) {
-    AppColorProfile* activeProfile = nullptr;
-    
-    // Phase 1: Update profile under lock
-    {
-        std::lock_guard<std::mutex> lock(appProfilesMutex);
-        
-        AppColorProfile* profile = FindProfileByNameInternal(appName);
-        if (profile) {
-            profile->actionKeys = actionKeys;
-            
-            // Remove any keys that are now in actionKeys from highlightKeys to prevent conflicts
-            RemoveKeysFromListInternal(profile->highlightKeys, actionKeys);
-            
-            // If this profile is currently displayed, we need to update action keys
-            if (profile->isProfileCurrInUse) {
-                activeProfile = profile;
-            }
-        }
-    } // Mutex released here
-    
-    // Phase 2: Apply action keys without holding mutex
-    if (activeProfile) {
-        ApplyProfileColorsInternal(activeProfile);
-    }
+    UpdateAppProfileProperty(appName, actionKeys, ProfileUpdateType::ActionKeys);
 }
 
 // Message handlers for app monitoring

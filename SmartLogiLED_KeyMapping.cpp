@@ -16,8 +16,8 @@ bool IsQWERTZLayout() {
             PRIMARYLANGID(langId) == LANG_SLOVAK);
 }
 
-// Convert Virtual Key code to LogiLed::KeyName
-LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode) {
+// Convert Virtual Key code to LogiLed::KeyName with extended key information
+LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode, DWORD flags = 0) {
     switch (vkCode) {
         case VK_ESCAPE: return LogiLed::KeyName::ESC;
         case VK_F1: return LogiLed::KeyName::F1;
@@ -90,7 +90,10 @@ LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode) {
         case 'L': return LogiLed::KeyName::L;
         case VK_OEM_1: return LogiLed::KeyName::SEMICOLON; // ;
         case VK_OEM_7: return LogiLed::KeyName::APOSTROPHE; // '
-        case VK_RETURN: return LogiLed::KeyName::ENTER;
+        case VK_RETURN: 
+            // Check if this is numpad enter - numpad enter has extended key flag NOT set
+            // Regular enter has extended key flag set
+            return (flags & LLKHF_EXTENDED) ? LogiLed::KeyName::ENTER : LogiLed::KeyName::NUM_ENTER;
         case VK_NUMPAD4: return LogiLed::KeyName::NUM_FOUR;
         case VK_NUMPAD5: return LogiLed::KeyName::NUM_FIVE;
         case VK_NUMPAD6: return LogiLed::KeyName::NUM_SIX;
@@ -126,6 +129,11 @@ LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode) {
         case VK_DECIMAL: return LogiLed::KeyName::NUM_PERIOD;
         default: return LogiLed::KeyName::ESC; // Return ESC for unknown keys
     }
+}
+
+// Overload for backward compatibility
+LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode) {
+    return VirtualKeyToLogiLedKey(vkCode, 0);
 }
 
 // Convert LogiLed::KeyName to display name (used for both UI display and config storage)

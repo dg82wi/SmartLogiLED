@@ -16,6 +16,9 @@
 // Convert Virtual Key code to LogiLed::KeyName
 LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode);
 
+// Convert Virtual Key code to LogiLed::KeyName with extended key information
+LogiLed::KeyName VirtualKeyToLogiLedKey(DWORD vkCode, DWORD flags);
+
 // Convert LogiLed::KeyName to display name for UI
 std::wstring LogiLedKeyToDisplayName(LogiLed::KeyName key);
 

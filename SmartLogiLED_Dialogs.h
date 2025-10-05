@@ -11,8 +11,12 @@
 
 #include "framework.h"
 #include "LogitechLEDLib.h"
+#include "SmartLogiLED_Types.h"
 #include <vector>
 #include <string>
+
+// Color picker utility functions
+bool ShowColorPickerDialog(HWND hWnd, COLORREF& color);
 
 // Dialog procedures
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
@@ -35,3 +39,7 @@ void ShowAppColorPicker(HWND hWnd, int colorType);
 
 // Dialog utility functions
 void RefreshAppProfileCombo(HWND hWnd);
+
+// Helper functions for temporary color application during key editing
+void ApplyTemporaryProfileColors(AppColorProfile* profile);
+void RestoreActiveProfileColors();

@@ -80,11 +80,11 @@ void                RefreshAppProfileCombo(HWND hWnd);
 void                RemoveSelectedProfile(HWND hWnd);
 void                UpdateActiveProfileSelection(HWND hWnd);
 void                UpdateCurrentProfileLabel(HWND hWnd);
-void                UpdateRemoveButtonState(HWND hWnd);
+void                UpdateButtonState(HWND hWnd, int buttonId, bool enableCondition);
+void                UpdateMultipleButtonStates(HWND hWnd);
 void                UpdateAppProfileColorBoxes(HWND hWnd);
 void                UpdateLockKeysCheckbox(HWND hWnd);
-void                UpdateKeysButtonState(HWND hWnd);
-void                UpdateActionKeysButtonState(HWND hWnd);
+void                UpdateAllProfileUIElements(HWND hWnd);
 bool                WaitForLogitechGHub();
 void                InitializeLogitechLED(HWND hWnd);
 
@@ -246,6 +246,37 @@ void InitializeLogitechLED(HWND hWnd) {
     gHubWaitingMessageShown = false;
 }
 
+// Generic function to update button states
+void UpdateButtonState(HWND hWnd, int buttonId, bool enableCondition) {
+    HWND hButton = GetDlgItem(hWnd, buttonId);
+    if (hButton) {
+        EnableWindow(hButton, enableCondition ? TRUE : FALSE);
+    }
+}
+
+// Generic function to update multiple button states based on profile selection
+void UpdateMultipleButtonStates(HWND hWnd) {
+    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
+    if (!hCombo) return;
+    
+    int selectedIndex = static_cast<int>(SendMessage(hCombo, CB_GETCURSEL, 0, 0));
+    bool hasValidSelection = (selectedIndex != CB_ERR && selectedIndex > 0);
+    
+    // Update all profile-dependent buttons with single condition check
+    UpdateButtonState(hWnd, IDC_BUTTON_REMOVE_PROFILE, hasValidSelection);
+    UpdateButtonState(hWnd, IDC_BUTTON_KEYS, hasValidSelection);
+    UpdateButtonState(hWnd, IDC_BUTTON_AKEYS, hasValidSelection);
+}
+
+// Generic function to update all profile-related UI elements at once
+void UpdateAllProfileUIElements(HWND hWnd) {
+    UpdateActiveProfileSelection(hWnd);
+    UpdateCurrentProfileLabel(hWnd);
+    UpdateMultipleButtonStates(hWnd);
+    UpdateAppProfileColorBoxes(hWnd);
+    UpdateLockKeysCheckbox(hWnd);
+}
+
 // Main window procedure (handles messages)
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     static HBRUSH hBrushNum = nullptr, hBrushCaps = nullptr, hBrushScroll = nullptr, hBrushDefault = nullptr;
@@ -260,58 +291,62 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                 switch (wmId) {
                     case IDC_BOX_NUMLOCK:
                         // Show color picker for NumLock
-                        ShowColorPicker(hWnd, numLockColor, LogiLed::KeyName::NUM_LOCK);
-                        InvalidateRect(GetDlgItem(hWnd, IDC_BOX_NUMLOCK), nullptr, TRUE);
-                        // Set color according to lock state and feature enabled state
-                        if (IsLockKeysFeatureEnabled()) {
-                            if ((GetKeyState(VK_NUMLOCK) & 0x0001) == 0x0001)
-                                SetKeyColor(LogiLed::KeyName::NUM_LOCK, numLockColor);
-                            else
+                        if (ShowColorPickerDialog(hWnd, numLockColor)) {
+                            InvalidateRect(GetDlgItem(hWnd, IDC_BOX_NUMLOCK), nullptr, TRUE);
+                            // Set color according to lock state and feature enabled state
+                            if (IsLockKeysFeatureEnabled()) {
+                                if ((GetKeyState(VK_NUMLOCK) & 0x0001) == 0x0001)
+                                    SetKeyColor(LogiLed::KeyName::NUM_LOCK, numLockColor);
+                                else
+                                    SetKeyColor(LogiLed::KeyName::NUM_LOCK, defaultColor);
+                            } else {
                                 SetKeyColor(LogiLed::KeyName::NUM_LOCK, defaultColor);
-                        } else {
-                            SetKeyColor(LogiLed::KeyName::NUM_LOCK, defaultColor);
+                            }
+                            SaveLockKeyColorsToRegistry();
                         }
-                        SaveLockKeyColorsToRegistry();
                         break;
                     case IDC_BOX_CAPSLOCK:
                         // Show color picker for CapsLock
-                        ShowColorPicker(hWnd, capsLockColor, LogiLed::KeyName::CAPS_LOCK);
-                        InvalidateRect(GetDlgItem(hWnd, IDC_BOX_CAPSLOCK), nullptr, TRUE);
-                        // Set color according to lock state and feature enabled state
-                        if (IsLockKeysFeatureEnabled()) {
-                            if ((GetKeyState(VK_CAPITAL) & 0x0001) == 0x0001)
-                                SetKeyColor(LogiLed::KeyName::CAPS_LOCK, capsLockColor);
-                            else
+                        if (ShowColorPickerDialog(hWnd, capsLockColor)) {
+                            InvalidateRect(GetDlgItem(hWnd, IDC_BOX_CAPSLOCK), nullptr, TRUE);
+                            // Set color according to lock state and feature enabled state
+                            if (IsLockKeysFeatureEnabled()) {
+                                if ((GetKeyState(VK_CAPITAL) & 0x0001) == 0x0001)
+                                    SetKeyColor(LogiLed::KeyName::CAPS_LOCK, capsLockColor);
+                                else
+                                    SetKeyColor(LogiLed::KeyName::CAPS_LOCK, defaultColor);
+                            } else {
                                 SetKeyColor(LogiLed::KeyName::CAPS_LOCK, defaultColor);
-                        } else {
-                            SetKeyColor(LogiLed::KeyName::CAPS_LOCK, defaultColor);
+                            }
+                            SaveLockKeyColorsToRegistry();
                         }
-                        SaveLockKeyColorsToRegistry();
                         break;
                     case IDC_BOX_SCROLLLOCK:
                         // Show color picker for ScrollLock
-                        ShowColorPicker(hWnd, scrollLockColor, LogiLed::KeyName::SCROLL_LOCK);
-                        InvalidateRect(GetDlgItem(hWnd, IDC_BOX_SCROLLLOCK), nullptr, TRUE);
-                        // Set color according to lock state and feature enabled state
-                        if (IsLockKeysFeatureEnabled()) {
-                            if ((GetKeyState(VK_SCROLL) & 0x0001) == 0x0001)
-                                SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, scrollLockColor);
-                            else
+                        if (ShowColorPickerDialog(hWnd, scrollLockColor)) {
+                            InvalidateRect(GetDlgItem(hWnd, IDC_BOX_SCROLLLOCK), nullptr, TRUE);
+                            // Set color according to lock state and feature enabled state
+                            if (IsLockKeysFeatureEnabled()) {
+                                if ((GetKeyState(VK_SCROLL) & 0x0001) == 0x0001)
+                                    SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, scrollLockColor);
+                                else
+                                    SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, defaultColor);
+                            } else {
                                 SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, defaultColor);
-                        } else {
-                            SetKeyColor(LogiLed::KeyName::SCROLL_LOCK, defaultColor);
+                            }
+                            SaveLockKeyColorsToRegistry();
                         }
-                        SaveLockKeyColorsToRegistry();
                         break;
                     case IDC_BOX_DEFAULTCOLOR:
                         // Show color picker for default color
-                        ShowColorPicker(hWnd, defaultColor);
-                        InvalidateRect(GetDlgItem(hWnd, IDC_BOX_DEFAULTCOLOR), nullptr, TRUE);
-                        // set new color for all keys
-                        SetDefaultColor(defaultColor);
-                        // set lock keys color
-                        SetLockKeysColor();
-                        SaveLockKeyColorsToRegistry();
+                        if (ShowColorPickerDialog(hWnd, defaultColor)) {
+                            InvalidateRect(GetDlgItem(hWnd, IDC_BOX_DEFAULTCOLOR), nullptr, TRUE);
+                            // set new color for all keys
+                            SetDefaultColor(defaultColor);
+                            // set lock keys color
+                            SetLockKeysColor();
+                            SaveLockKeyColorsToRegistry();
+                        }
                         break;
                     case IDM_ABOUT:
                         DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
@@ -360,11 +395,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                         break;
                     case IDC_COMBO_APPPROFILE:
                         if (HIWORD(wParam) == CBN_SELCHANGE) {
-                            UpdateRemoveButtonState(hWnd);
+                            // Use generic function to update all UI elements at once
+                            UpdateMultipleButtonStates(hWnd);
                             UpdateAppProfileColorBoxes(hWnd);
                             UpdateLockKeysCheckbox(hWnd);
-                            UpdateKeysButtonState(hWnd);
-                            UpdateActionKeysButtonState(hWnd);
                         }
                         break;
                     case IDC_BOX_APPCOLOR:
@@ -672,13 +706,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             }
             break;
         case WM_UPDATE_PROFILE_COMBO: // Custom message to update profile combo box
-            UpdateActiveProfileSelection(hWnd);
-            UpdateCurrentProfileLabel(hWnd);
-            UpdateRemoveButtonState(hWnd);
-            UpdateAppProfileColorBoxes(hWnd);
-            UpdateLockKeysCheckbox(hWnd);
-            UpdateKeysButtonState(hWnd);
-            UpdateActionKeysButtonState(hWnd);
+            // Use generic function to update all UI elements at once
+            UpdateAllProfileUIElements(hWnd);
             break;
         case WM_APP_STARTED: // Custom message for app started
             {
@@ -813,8 +842,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    // Update the current profile label
    UpdateCurrentProfileLabel(hWnd);
 
-   // Update the remove button state
-   UpdateRemoveButtonState(hWnd);
+   // Use generic function to update all UI elements
+   UpdateMultipleButtonStates(hWnd);
    
    // Update app profile color boxes
    UpdateAppProfileColorBoxes(hWnd);
@@ -925,60 +954,6 @@ void UpdateCurrentProfileLabel(HWND hWnd) {
     
     // If no profile is displayed, show "NONE"
     SetWindowTextW(hLabel, L"Profile in use: NONE");
-}
-
-// Update the remove button state based on current combo box selection
-void UpdateRemoveButtonState(HWND hWnd) {
-    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
-    HWND hRemoveButton = GetDlgItem(hWnd, IDC_BUTTON_REMOVE_PROFILE);
-    
-    if (!hCombo || !hRemoveButton) return;
-    
-    int selectedIndex = static_cast<int>(SendMessage(hCombo, CB_GETCURSEL, 0, 0));
-    
-    // Disable the remove button if "NONE" is selected (index 0) or no selection
-    if (selectedIndex == CB_ERR || selectedIndex == 0) {
-        EnableWindow(hRemoveButton, FALSE);
-    } else {
-        EnableWindow(hRemoveButton, TRUE);
-    }
-    
-    // Also update the Keys button state
-    UpdateKeysButtonState(hWnd);
-}
-
-// Update the keys button state based on current combo box selection
-void UpdateKeysButtonState(HWND hWnd) {
-    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
-    HWND hKeysButton = GetDlgItem(hWnd, IDC_BUTTON_KEYS);
-    
-    if (!hCombo || !hKeysButton) return;
-    
-    int selectedIndex = static_cast<int>(SendMessage(hCombo, CB_GETCURSEL, 0, 0));
-    
-    // Disable the keys button if "NONE" is selected (index 0) or no selection
-    if (selectedIndex == CB_ERR || selectedIndex == 0) {
-        EnableWindow(hKeysButton, FALSE);
-    } else {
-        EnableWindow(hKeysButton, TRUE);
-    }
-}
-
-// Update the action keys button state based on current combo box selection
-void UpdateActionKeysButtonState(HWND hWnd) {
-    HWND hCombo = GetDlgItem(hWnd, IDC_COMBO_APPPROFILE);
-    HWND hAKeysButton = GetDlgItem(hWnd, IDC_BUTTON_AKEYS);
-    
-    if (!hCombo || !hAKeysButton) return;
-    
-    int selectedIndex = static_cast<int>(SendMessage(hCombo, CB_GETCURSEL, 0, 0));
-    
-    // Disable the A-Keys button if "NONE" is selected (index 0) or no selection
-    if (selectedIndex == CB_ERR || selectedIndex == 0) {
-        EnableWindow(hAKeysButton, FALSE);
-    } else {
-        EnableWindow(hAKeysButton, TRUE);
-    }
 }
 
 // Update app profile color boxes to show colors from selected profile

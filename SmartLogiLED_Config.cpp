@@ -12,6 +12,10 @@
 #include <iomanip>
 #include <shlobj.h>
 
+// ======================================================================
+// REGISTRY FUNCTIONS FOR START MINIMIZED SETTING
+// ======================================================================
+
 // Registry functions for start minimized setting
 void SaveStartMinimizedSetting(bool minimized) {
     HKEY hKey;
@@ -261,106 +265,68 @@ size_t GetAppProfilesCount() {
     return appColorProfiles.size();
 }
 
-// Update specific app profile color in registry
-void UpdateAppProfileColorInRegistry(const std::wstring& appName, COLORREF newAppColor) {
+// Generic helper function to update DWORD values in app profile registry
+static void UpdateAppProfileDWordValueInRegistry(const std::wstring& appName, LPCWSTR valueName, DWORD value) {
     HKEY hProfilesKey = nullptr;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
         HKEY hAppKey = nullptr;
         if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
-            DWORD d = static_cast<DWORD>(newAppColor);
-            RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_COLOR, 0, REG_DWORD,
-                           reinterpret_cast<const BYTE*>(&d), sizeof(d));
+            RegSetValueExW(hAppKey, valueName, 0, REG_DWORD,
+                           reinterpret_cast<const BYTE*>(&value), sizeof(value));
             RegCloseKey(hAppKey);
         }
         RegCloseKey(hProfilesKey);
     }
+}
+
+// Generic helper function to update key vector data in app profile registry
+static void UpdateAppProfileKeyVectorInRegistry(const std::wstring& appName, LPCWSTR valueName, const std::vector<LogiLed::KeyName>& keys) {
+    HKEY hProfilesKey = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
+        HKEY hAppKey = nullptr;
+        if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
+            if (!keys.empty()) {
+                std::vector<DWORD> data;
+                data.reserve(keys.size());
+                for (auto k : keys) data.push_back(static_cast<DWORD>(k));
+                RegSetValueExW(hAppKey, valueName, 0, REG_BINARY,
+                               reinterpret_cast<const BYTE*>(data.data()),
+                               static_cast<DWORD>(data.size() * sizeof(DWORD)));
+            } else {
+                RegSetValueExW(hAppKey, valueName, 0, REG_BINARY, nullptr, 0);
+            }
+            RegCloseKey(hAppKey);
+        }
+        RegCloseKey(hProfilesKey);
+    }
+}
+
+// Update specific app profile color in registry
+void UpdateAppProfileColorInRegistry(const std::wstring& appName, COLORREF newAppColor) {
+    UpdateAppProfileDWordValueInRegistry(appName, REGISTRY_VALUE_APP_COLOR, static_cast<DWORD>(newAppColor));
 }
 
 // Update specific app profile highlight color in registry
 void UpdateAppProfileHighlightColorInRegistry(const std::wstring& appName, COLORREF newHighlightColor) {
-    HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
-        HKEY hAppKey = nullptr;
-        if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
-            DWORD d = static_cast<DWORD>(newHighlightColor);
-            RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_HIGHLIGHT_COLOR, 0, REG_DWORD,
-                           reinterpret_cast<const BYTE*>(&d), sizeof(d));
-            RegCloseKey(hAppKey);
-        }
-        RegCloseKey(hProfilesKey);
-    }
+    UpdateAppProfileDWordValueInRegistry(appName, REGISTRY_VALUE_APP_HIGHLIGHT_COLOR, static_cast<DWORD>(newHighlightColor));
 }
 
 // Update specific app profile action color in registry
 void UpdateAppProfileActionColorInRegistry(const std::wstring& appName, COLORREF newActionColor) {
-    HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
-        HKEY hAppKey = nullptr;
-        if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
-            DWORD d = static_cast<DWORD>(newActionColor);
-            RegSetValueExW(hAppKey, REGISTRY_VALUE_APP_ACTION_COLOR, 0, REG_DWORD,
-                           reinterpret_cast<const BYTE*>(&d), sizeof(d));
-            RegCloseKey(hAppKey);
-        }
-        RegCloseKey(hProfilesKey);
-    }
+    UpdateAppProfileDWordValueInRegistry(appName, REGISTRY_VALUE_APP_ACTION_COLOR, static_cast<DWORD>(newActionColor));
 }
 
 // Update specific app profile lock keys enabled setting in registry
 void UpdateAppProfileLockKeysEnabledInRegistry(const std::wstring& appName, bool lockKeysEnabled) {
-    HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
-        HKEY hAppKey = nullptr;
-        if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
-            DWORD d = lockKeysEnabled ? 1u : 0u;
-            RegSetValueExW(hAppKey, REGISTRY_VALUE_LOCK_KEYS_ENABLED, 0, REG_DWORD,
-                           reinterpret_cast<const BYTE*>(&d), sizeof(d));
-            RegCloseKey(hAppKey);
-        }
-        RegCloseKey(hProfilesKey);
-    }
+    UpdateAppProfileDWordValueInRegistry(appName, REGISTRY_VALUE_LOCK_KEYS_ENABLED, lockKeysEnabled ? 1u : 0u);
 }
 
 // Update specific app profile highlight keys in registry
 void UpdateAppProfileHighlightKeysInRegistry(const std::wstring& appName, const std::vector<LogiLed::KeyName>& highlightKeys) {
-    HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
-        HKEY hAppKey = nullptr;
-        if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
-            if (!highlightKeys.empty()) {
-                std::vector<DWORD> data;
-                data.reserve(highlightKeys.size());
-                for (auto k : highlightKeys) data.push_back(static_cast<DWORD>(k));
-                RegSetValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, 0, REG_BINARY,
-                               reinterpret_cast<const BYTE*>(data.data()),
-                               static_cast<DWORD>(data.size() * sizeof(DWORD)));
-            } else {
-                RegSetValueExW(hAppKey, REGISTRY_VALUE_HIGHLIGHT_KEYS, 0, REG_BINARY, nullptr, 0);
-            }
-            RegCloseKey(hAppKey);
-        }
-        RegCloseKey(hProfilesKey);
-    }
+    UpdateAppProfileKeyVectorInRegistry(appName, REGISTRY_VALUE_HIGHLIGHT_KEYS, highlightKeys);
 }
 
 // Update specific app profile action keys in registry
 void UpdateAppProfileActionKeysInRegistry(const std::wstring& appName, const std::vector<LogiLed::KeyName>& actionKeys) {
-    HKEY hProfilesKey = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_PROFILES, 0, KEY_WRITE, &hProfilesKey) == ERROR_SUCCESS) {
-        HKEY hAppKey = nullptr;
-        if (RegOpenKeyExW(hProfilesKey, appName.c_str(), 0, KEY_WRITE, &hAppKey) == ERROR_SUCCESS) {
-            if (!actionKeys.empty()) {
-                std::vector<DWORD> data;
-                data.reserve(actionKeys.size());
-                for (auto k : actionKeys) data.push_back(static_cast<DWORD>(k));
-                RegSetValueExW(hAppKey, REGISTRY_VALUE_ACTION_KEYS, 0, REG_BINARY,
-                               reinterpret_cast<const BYTE*>(data.data()),
-                               static_cast<DWORD>(data.size() * sizeof(DWORD)));
-            } else {
-                RegSetValueExW(hAppKey, REGISTRY_VALUE_ACTION_KEYS, 0, REG_BINARY, nullptr, 0);
-            }
-            RegCloseKey(hAppKey);
-        }
-        RegCloseKey(hProfilesKey);
-    }
+    UpdateAppProfileKeyVectorInRegistry(appName, REGISTRY_VALUE_ACTION_KEYS, actionKeys);
 }
