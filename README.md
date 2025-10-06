@@ -408,8 +408,8 @@ struct AppColorProfile {
 - **Debug Logs**: Enable debug builds for detailed troubleshooting information
 
 ### Supported Hardware
-- **Tested Models**: Logitech G915, G815, G513, G413, G910, G810
-- **Compatibility**: Any Logitech RGB keyboard with per-key lighting support
+- **Tested Models**: Logitech G513
+- **Compatibility**: Any Logitech RGB keyboard with per-key lighting support like G915, G815, G513, G413, G910, G810
 - **Requirements**: Must be recognized by Logitech Gaming Software or G HUB
 
 ### Reporting Issues
