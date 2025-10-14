@@ -44,6 +44,8 @@ bool startMinimized = false;
 static bool ledInitializationPending = false;
 static bool gHubWaitingMessageShown = false;
 static UINT_PTR gHubCheckTimer = 0;
+static bool gHubDelayPending = false;
+static UINT_PTR gHubDelayTimer = 0;
 
 // Color settings for lock keys and default
 COLORREF capsLockColor = RGB(0, 179, 0); // Caps Lock color
@@ -214,10 +216,27 @@ void InitializeLogitechLED(HWND hWnd) {
         return;
     }
 
-    // Stop the timer if it's running
+    // Stop the G HUB check timer if it's running
     if (gHubCheckTimer != 0) {
         KillTimer(hWnd, gHubCheckTimer);
         gHubCheckTimer = 0;
+    }
+
+    // G HUB detected - start 5 second delay before initialization
+    if (!gHubDelayPending) {
+        gHubDelayPending = true;
+        // Update window title to indicate delay
+        SetWindowTextW(hWnd, L"SmartLogiLED - initializing G HUB...");
+        
+        // Start delay timer (30 seconds)
+        gHubDelayTimer = SetTimer(hWnd, 1002, 30000, nullptr);
+        return;
+    }
+
+    // Stop the delay timer if it's running
+    if (gHubDelayTimer != 0) {
+        KillTimer(hWnd, gHubDelayTimer);
+        gHubDelayTimer = 0;
     }
 
     // Revert window title back to normal
@@ -244,6 +263,7 @@ void InitializeLogitechLED(HWND hWnd) {
     
     ledInitializationPending = false;
     gHubWaitingMessageShown = false;
+    gHubDelayPending = false;
 }
 
 // Generic function to update button states
@@ -661,10 +681,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             if (hBrushAppHighlightColor) DeleteObject(hBrushAppHighlightColor);
             if (hBrushAppActionColor) DeleteObject(hBrushAppActionColor);
             
-            // Cleanup G HUB check timer
+            // Cleanup G HUB timers
             if (gHubCheckTimer != 0) {
                 KillTimer(hWnd, gHubCheckTimer);
                 gHubCheckTimer = 0;
+            }
+            if (gHubDelayTimer != 0) {
+                KillTimer(hWnd, gHubDelayTimer);
+                gHubDelayTimer = 0;
             }
             
             RemoveTrayIcon();
@@ -745,8 +769,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             {
                 if (wParam == 1001 && ledInitializationPending) { // G HUB check timer
                     if (WaitForLogitechGHub()) {
-                        InitializeLogitechLED(hWnd); // This will stop the timer and initialize LED
+                        InitializeLogitechLED(hWnd); // This will start the delay timer
                     }
+                }
+                else if (wParam == 1002 && gHubDelayPending) { // G HUB delay timer
+                    InitializeLogitechLED(hWnd); // This will complete the LED initialization
                 }
             }
             break;
