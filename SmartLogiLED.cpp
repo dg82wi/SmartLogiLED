@@ -209,9 +209,9 @@ void InitializeLogitechLED(HWND hWnd) {
             gHubWaitingMessageShown = true;
         }
         
-        // Start a timer to periodically check for G HUB (every 5 seconds)
+        // Start a timer to periodically check for G HUB (every 1 seconds)
         if (gHubCheckTimer == 0) {
-            gHubCheckTimer = SetTimer(hWnd, 1001, 5000, nullptr);
+            gHubCheckTimer = SetTimer(hWnd, 1001, 1000, nullptr);
         }
         return;
     }
@@ -228,8 +228,8 @@ void InitializeLogitechLED(HWND hWnd) {
         // Update window title to indicate delay
         SetWindowTextW(hWnd, L"SmartLogiLED - initializing G HUB...");
         
-        // Start delay timer (30 seconds)
-        gHubDelayTimer = SetTimer(hWnd, 1002, 30000, nullptr);
+        // Start delay timer (10 seconds)
+        gHubDelayTimer = SetTimer(hWnd, 1002, 10000, nullptr);
         return;
     }
 
