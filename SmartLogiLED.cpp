@@ -99,6 +99,21 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
+    // Single instance check: prevent multiple instances
+    HANDLE hMutex = CreateMutexW(nullptr, TRUE, SMARTLOGILED_SINGLE_INSTANCE_MUTEX);
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        // Another instance is already running - find its window and bring it to front
+        if (hMutex) CloseHandle(hMutex);
+
+        WCHAR szClass[MAX_LOADSTRING]{};
+        LoadStringW(hInstance, IDC_SMARTLOGILED, szClass, MAX_LOADSTRING);
+        HWND hExisting = FindWindowW(szClass, nullptr);
+        if (hExisting) {
+            PostMessage(hExisting, WM_SHOW_EXISTING_INSTANCE, 0, 0);
+        }
+        return 0;
+    }
+
     // Load start minimized setting from registry
     startMinimized = LoadStartMinimizedSetting();
 
@@ -113,6 +128,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // Application initialization
     if (!InitInstance (hInstance, nCmdShow))
     {
+        if (hMutex) CloseHandle(hMutex);
         return FALSE;
     }
 
@@ -128,6 +144,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+    }
+
+    // Release the mutex when the application exits
+    if (hMutex) {
+        ReleaseMutex(hMutex);
+        CloseHandle(hMutex);
     }
 
     return static_cast<int>(msg.wParam);
@@ -721,6 +743,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             } else if (lParam == WM_RBUTTONUP) {
                 ShowTrayContextMenu(hWnd);
             }
+            break;
+        case WM_SHOW_EXISTING_INSTANCE: // Another instance requested to show this window
+            RemoveTrayIcon();
+            ShowWindow(hWnd, SW_SHOW);
+            ShowWindow(hWnd, SW_RESTORE);
+            SetForegroundWindow(hWnd);
             break;
         case WM_LOCK_KEY_PRESSED: // Custom message for lock key pressed
             {

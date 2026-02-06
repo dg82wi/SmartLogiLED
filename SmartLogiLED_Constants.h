@@ -1,5 +1,8 @@
 #pragma once
 
+// Single instance mutex name
+#define SMARTLOGILED_SINGLE_INSTANCE_MUTEX L"SmartLogiLED_SingleInstance_Mutex"
+
 // Registry constants for registry operations
 #define SMARTLOGILED_REGISTRY_ROOT      L"Software\\SmartLogiLED"
 #define SMARTLOGILED_REGISTRY_PROFILES  L"Software\\SmartLogiLED\\AppProfiles"

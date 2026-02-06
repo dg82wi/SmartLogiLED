@@ -33,3 +33,4 @@ struct ProcessMessageData {
 #define WM_APP_STARTED (WM_USER + 102)
 #define WM_APP_STOPPED (WM_USER + 103)
 #define WM_PROCESS_LIST_UPDATE (WM_USER + 104)
+#define WM_SHOW_EXISTING_INSTANCE (WM_USER + 105)
