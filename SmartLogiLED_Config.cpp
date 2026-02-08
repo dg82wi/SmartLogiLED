@@ -46,6 +46,46 @@ bool LoadStartMinimizedSetting() {
     return false; // Default to false if setting doesn't exist
 }
 
+void SaveStartWithWindowsSetting(bool enabled) {
+    HKEY hKey;
+    LONG result = RegCreateKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_RUN_KEY, 0, NULL,
+                                REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, NULL);
+    if (result != ERROR_SUCCESS) {
+        return;
+    }
+
+    if (enabled) {
+        wchar_t exePath[MAX_PATH]{};
+        if (GetModuleFileNameW(nullptr, exePath, MAX_PATH) > 0) {
+            std::wstring value = L"\"";
+            value += exePath;
+            value += L"\"";
+            RegSetValueExW(hKey, SMARTLOGILED_PRODUCT_NAME, 0, REG_SZ,
+                           reinterpret_cast<const BYTE*>(value.c_str()),
+                           static_cast<DWORD>((value.size() + 1) * sizeof(wchar_t)));
+        }
+    } else {
+        RegDeleteValueW(hKey, SMARTLOGILED_PRODUCT_NAME);
+    }
+
+    RegCloseKey(hKey);
+}
+
+bool LoadStartWithWindowsSetting() {
+    HKEY hKey;
+    LONG result = RegOpenKeyExW(HKEY_CURRENT_USER, SMARTLOGILED_REGISTRY_RUN_KEY, 0, KEY_READ, &hKey);
+    if (result != ERROR_SUCCESS) {
+        return false;
+    }
+
+    DWORD type = 0;
+    DWORD size = 0;
+    result = RegQueryValueExW(hKey, SMARTLOGILED_PRODUCT_NAME, NULL, &type, NULL, &size);
+    RegCloseKey(hKey);
+
+    return (result == ERROR_SUCCESS && (type == REG_SZ || type == REG_EXPAND_SZ));
+}
+
 // Registry functions for color settings
 void SaveColorToRegistry(LPCWSTR valueName, COLORREF color) {
     HKEY hKey;

@@ -6,6 +6,7 @@
 // Registry constants for registry operations
 #define SMARTLOGILED_REGISTRY_ROOT      L"Software\\SmartLogiLED"
 #define SMARTLOGILED_REGISTRY_PROFILES  L"Software\\SmartLogiLED\\AppProfiles"
+#define SMARTLOGILED_REGISTRY_RUN_KEY   L"Software\\Microsoft\\Windows\\CurrentVersion\\Run"
 #define REGISTRY_VALUE_START_MINIMIZED L"StartMinimized"
 #define REGISTRY_VALUE_NUMLOCK_COLOR L"NumLockColor"
 #define REGISTRY_VALUE_CAPSLOCK_COLOR L"CapsLockColor"

@@ -10,6 +10,8 @@
 // Registry functions for start minimized setting
 void SaveStartMinimizedSetting(bool minimized);
 bool LoadStartMinimizedSetting();
+void SaveStartWithWindowsSetting(bool enabled);
+bool LoadStartWithWindowsSetting();
 
 // Registry functions for color settings
 void SaveColorToRegistry(LPCWSTR valueName, COLORREF color);
