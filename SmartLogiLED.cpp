@@ -212,8 +212,6 @@ void ShowTrayContextMenu(HWND hWnd) {
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hMenu, MF_STRING | (startMinimized ? MF_CHECKED : MF_UNCHECKED), 
                 ID_TRAY_START_MINIMIZED, L"Start minimized");
-    AppendMenuW(hMenu, MF_STRING | (startWithWindows ? MF_CHECKED : MF_UNCHECKED),
-                ID_TRAY_START_WITH_WINDOWS, L"Start with Windows");
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(hMenu, MF_STRING, ID_TRAY_CLOSE, L"Close");
     SetForegroundWindow(hWnd); // Required for menu to disappear correctly
@@ -429,10 +427,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                     case ID_TRAY_START_MINIMIZED:
                         startMinimized = !startMinimized;
                         SaveStartMinimizedSetting(startMinimized);
-                        break;
-                    case ID_TRAY_START_WITH_WINDOWS:
-                        startWithWindows = !startWithWindows;
-                        SaveStartWithWindowsSetting(startWithWindows);
                         break;
                     case ID_TRAY_CLOSE:
                         DestroyWindow(hWnd);

@@ -39,7 +39,6 @@
 #define ID_TRAY_OPEN 1001
 #define ID_TRAY_CLOSE 1002
 #define ID_TRAY_START_MINIMIZED 1003
-#define ID_TRAY_START_WITH_WINDOWS 1004
 #define IDC_GROUP_LOCKS 300
 
 // App Profile controls
