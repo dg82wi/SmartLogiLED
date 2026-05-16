@@ -416,6 +416,7 @@ struct AppColorProfile {
 When reporting issues, please include:
 - Windows version and keyboard model
 - Logitech software version (Gaming Software or G HUB)
+    - Tested with Logitech Gaming Software v9.04.49 (not working with G HUB only on my system)
 - Steps to reproduce the issue  
 - Any error messages or unexpected behavior
 - Debug logs if available (Debug builds)
