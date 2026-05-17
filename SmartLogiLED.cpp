@@ -82,7 +82,7 @@ void                UpdateMultipleButtonStates(HWND hWnd);
 void                UpdateAppProfileColorBoxes(HWND hWnd);
 void                UpdateLockKeysCheckbox(HWND hWnd);
 void                UpdateAllProfileUIElements(HWND hWnd);
-bool                WaitForLogitechGHub();
+bool                IsLogitechGHubRunning();
 void                InitializeLogitechLED(HWND hWnd);
 
 // Entry point for the application
@@ -214,14 +214,14 @@ void ShowTrayContextMenu(HWND hWnd) {
 }
 
 // Check if Logitech G HUB is running
-bool WaitForLogitechGHub() {
+bool IsLogitechGHubRunning() {
     // Check for Logitech G HUB process (regardless of window visibility)
     return IsProcessRunning(L"lghub_agent.exe");
 }
 
 // Initialize Logitech LED SDK with G HUB dependency check
 void InitializeLogitechLED(HWND hWnd) {
-    if (!WaitForLogitechGHub()) {
+    if (!IsLogitechGHubRunning()) {
         ledInitializationPending = true;
         if (!gHubWaitingMessageShown) {
             // Update window title to indicate waiting for G HUB
@@ -244,11 +244,12 @@ void InitializeLogitechLED(HWND hWnd) {
 
     // G HUB detected - start delay before initialization
     if (gHubDelayTimer == 0) {
+        ledInitializationPending = true;
         // Update window title to indicate delay
         SetWindowTextW(hWnd, L"SmartLogiLED - initializing G HUB...");
         
-        // Start delay timer (10 seconds)
-        gHubDelayTimer = SetTimer(hWnd, 1002, 10000, nullptr);
+        // Start delay timer (1 seconds)
+        gHubDelayTimer = SetTimer(hWnd, 1002, 1000, nullptr);
         return;
     }
 
@@ -258,14 +259,11 @@ void InitializeLogitechLED(HWND hWnd) {
         gHubDelayTimer = 0;
     }
 
-    // Revert window title back to normal
-    SetWindowTextW(hWnd, L"SmartLogiLED");
-
     // Initialize Logitech LED SDK
     bool LedInitialized = LogiLedInit();
     if (!LedInitialized) {
         ledInitializationPending = true;
-        SetWindowTextW(hWnd, L"SmartLogiLED - waiting for G HUB");
+        SetWindowTextW(hWnd, L"SmartLogiLED - initializing LED Drv");
 
         // Keep retrying until G HUB/SDK is ready (no timeout failure)
         if (gHubDelayTimer == 0) {
@@ -276,7 +274,7 @@ void InitializeLogitechLED(HWND hWnd) {
     if (!LogiLedSetTargetDevice(LOGI_DEVICETYPE_PERKEY_RGB)) {
         LogiLedShutdown();
         ledInitializationPending = true;
-        SetWindowTextW(hWnd, L"SmartLogiLED - waiting for G HUB");
+        SetWindowTextW(hWnd, L"SmartLogiLED - no 'per-key RGB' device found");
 
         // Keep retrying until target device mode is available
         if (gHubDelayTimer == 0) {
@@ -284,7 +282,10 @@ void InitializeLogitechLED(HWND hWnd) {
         }
         return;
     }
-    
+
+    // Revert window title back to normal
+    SetWindowTextW(hWnd, L"SmartLogiLED");
+
     // Save current lighting state
     LogiLedSaveCurrentLighting();
 
@@ -812,7 +813,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             // Handle timer messages
             {
                 if (wParam == 1001 && ledInitializationPending) { // G HUB check timer
-                    if (WaitForLogitechGHub()) {
+                    if (IsLogitechGHubRunning()) {
                         InitializeLogitechLED(hWnd); // This will start the delay timer
                     }
                 }
