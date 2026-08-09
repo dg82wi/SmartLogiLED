@@ -409,6 +409,7 @@ struct AppColorProfile {
 
 ### Supported Hardware
 - **Tested Models**: Logitech G513
+- **Tested with Logitech G-Hub** V 2026.5.939708
 - **Compatibility**: Any Logitech RGB keyboard with per-key lighting support like G915, G815, G513, G413, G910, G810
 - **Requirements**: Must be recognized by Logitech Gaming Software or G HUB
 
@@ -416,7 +417,6 @@ struct AppColorProfile {
 When reporting issues, please include:
 - Windows version and keyboard model
 - Logitech software version (Gaming Software or G HUB)
-    - Tested with Logitech G-Hub V 2026.2.861817 (not working higher versions of G HUB on my system)
 - Steps to reproduce the issue  
 - Any error messages or unexpected behavior
 - Debug logs if available (Debug builds)
