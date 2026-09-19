@@ -249,7 +249,7 @@ void InitializeLogitechLED(HWND hWnd) {
         SetWindowTextW(hWnd, L"SmartLogiLED - initializing G HUB...");
         
         // Start delay timer (1 seconds)
-        gHubDelayTimer = SetTimer(hWnd, 1002, 1000, nullptr);
+        gHubDelayTimer = SetTimer(hWnd, 1002, 5000, nullptr);
         return;
     }
 
